@@ -1,0 +1,70 @@
+{
+  "idempotency_key": "v8-spell-gates-random-10ep-001",
+  "target": {
+    "league_id": "league_3c60897b-25cf-4b37-9d1a-8554c1198f28"
+  },
+  "roster": [
+    {
+      "player": {
+        "policy_ref": "lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v8"
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    }
+  ],
+  "num_episodes": 10,
+  "notes": "A/B candidate: v8 (v7 + spell card gates: E/R heroes only, delayed E/R need 2 heroes or one <=40% HP, W footmen only with no hero in range, R first, no building casts) vs 9 random league champions, rotate seats, 10 episodes"
+}

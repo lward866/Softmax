@@ -3,6 +3,9 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v8 adds spell gates (GotA Spell Use Card, current-game ranges): E and R only
+' on enemy heroes, delayed E/R need two heroes or one at 40% HP, W on footmen
+' only with no hero in range, R tried first, no casts on buildings.
 ' v7 replaces lane choice with live lane buckets built from allied towers and
 ' barracks (GotA v6 frame spec): stay while the committed lane has allied
 ' footmen; after 48 dry ticks walk once to a less crowded lane that has them.
@@ -27,11 +30,19 @@ dim laneCreeps(3)
 dim laneFront(3)
 dim laneFrontX(3)
 dim laneFrontY(3)
-dim allyX(9)
-dim allyY(9)
+' Allied hero positions: x at 2 * i, y at 2 * i + 1.
+dim allyXY(19)
 dim inventorySlot(22)
 dim allyIds(9)
 dim seenMaxHp(9)
+dim foeId(4)
+dim foeX(4)
+dim foeY(4)
+dim foeHp(4)
+dim foeClass(4)
+dim foeGap(4)
+' Cast log per slot: index slot * 4 + 0 hero, 1 creep, 2 other, 3 self.
+dim castLog(15)
 dim castRange(3)
 dim castDelay(3)
 dim castGround(3)
@@ -266,8 +277,8 @@ sub readObject(index)
         allyHeroesNear = allyHeroesNear + 1
       end if
       if id <> selfId and allyCount < 10 then
-        allyX(allyCount) = x
-        allyY(allyCount) = y
+        allyXY(allyCount * 2) = x
+        allyXY(allyCount * 2 + 1) = y
         allyCount = allyCount + 1
         dx = x - homeX
         dy = y - homeY
@@ -335,6 +346,18 @@ sub readObject(index)
   end if
   if kind = 2 and distance <= 36 then
     enemyHeroesNear = enemyHeroesNear + 1
+  end if
+  if kind = 2 and foes < 5 and objectAlive(index) then
+    foeId(foes) = id
+    foeX(foes) = x
+    foeY(foes) = y
+    foeHp(foes) = hp
+    foeClass(foes) = objectClass(index)
+    foeGap(foes) = distance
+    if hp > seenMaxHp(objectClass(index)) then
+      seenMaxHp(objectClass(index)) = hp
+    end if
+    foes = foes + 1
   end if
   if kind = 2 and distance <= 144 then
     enemyPower = enemyPower + objectLevel(index) + 2
@@ -415,6 +438,7 @@ sub observe()
   forwardDistance = 1000000
   safeDistance = 1000000
   waveScore = 1000000
+  foes = 0
   anchorCount = 0
   anchorsBuilt = 0
   allyCount = 0
@@ -561,7 +585,7 @@ sub inventory()
           consume = threatDistance > 100 and worldTick - hurtTick > tickRate
         elseif id = 3 and selfMana * 3 < selfMaxMana then
           consume = bestId <> 0
-        elseif id = 4 and selfTarget = bestId and bestId <> 0 then
+        elseif id = 4 and selfTarget = bestId and bestId <> 0 and bestKind = 2 then
           consume = bestDistance <= attackRange * attackRange
         end if
         if consume then
@@ -738,7 +762,9 @@ sub spells()
   if selfSilenceTicks > 0 then
     exit sub
   end if
-  for spellSlot = 0 to 3
+  ' R first, then E, W, Q: an ultimate with a legal hero shot is spent now.
+  for slotOrder = 0 to 3
+    spellSlot = 3 - slotOrder
     charges = abilityCharges(spellSlot)
     recharge = abilityRecharge(spellSlot)
     damage = abilityDamage(spellSlot)
@@ -748,72 +774,99 @@ sub spells()
     if abilityLevel(spellSlot) > 0 and charges > 0 then
       if abilityCooldown(spellSlot) = 0 and selfMana >= cost then
         castId = 0
-        if healing > 0 and healMissing >= healing \ 2 then
+        castKind = 0
+        if healing > 0 and healMissing * 10 >= healing * 7 then
+          ' Heals only when at least 70% of the packet will land.
           if selfClass = DruidWarden and spellSlot > 0 then
             castId = healId
           elseif selfClass = VanguardKnight and spellSlot = 2 then
             ' Aegis heals around us, even when only an ally is wounded.
             castId = selfId
-          elseif selfMaxHp - selfHp >= healing \ 2 then
+          elseif (selfMaxHp - selfHp) * 10 >= healing * 7 then
             castId = selfId
           end if
+          castKind = 7
         elseif restore > 0 and selfMaxMana - selfMana >= restore then
           castId = selfId
-        elseif damage > 0 and bestId <> 0 then
-          if bestDistance <= castRange(spellSlot) * castRange(spellSlot) then
-            if bestDistance >= castMinimum(spellSlot) * castMinimum(spellSlot) then
-              ' Save the last recharging charge for valuable targets.
-              if bestKind <> 3 or charges > 1 or recharge <= tickRate then
-                castId = bestId
-              elseif bestHp <= damage then
-                castId = bestId
+          castKind = 7
+        elseif damage > 0 then
+          ' Nearest visible enemy hero inside this slot's cast range.
+          heroPick = -1
+          reach = castRange(spellSlot) * castRange(spellSlot)
+          for foe = 0 to foes - 1
+            if foeGap(foe) <= reach and foeGap(foe) >= castMinimum(spellSlot) * castMinimum(spellSlot) then
+              if heroPick < 0 then
+                heroPick = foe
+              elseif foeGap(foe) < foeGap(heroPick) then
+                heroPick = foe
               end if
             end if
+          next foe
+          if heroPick >= 0 and spellSlot >= 2 and castDelay(spellSlot) >= tickRate then
+            ' A delayed area needs two heroes near the aim or a low target.
+            crowd = 0
+            for foe = 0 to foes - 1
+              dx = foeX(foe) - foeX(heroPick)
+              dy = foeY(foe) - foeY(heroPick)
+              if dx * dx + dy * dy <= 4 then
+                crowd = crowd + 1
+              end if
+            next foe
+            if crowd < 2 and foeHp(heroPick) * 10 > seenMaxHp(foeClass(heroPick)) * 4 then
+              heroPick = -1
+            end if
+          end if
+          if heroPick >= 0 then
+            castId = foeId(heroPick)
+            castKind = 2
+            castX = foeX(heroPick)
+            castY = foeY(heroPick)
+          elseif spellSlot <= 1 and bestId <> 0 and bestKind <> 1 and bestKind <> 4 and bestKind <> 5 then
+            ' Q and W may farm footmen or camps when no hero is in range.
+            if bestDistance <= reach and bestDistance >= castMinimum(spellSlot) * castMinimum(spellSlot) then
+              ' Save the last recharging charge for valuable targets.
+              if bestKind <> 3 or charges > 1 or recharge <= tickRate or bestHp <= damage then
+                castId = bestId
+                castKind = bestKind
+                castX = bestX
+                castY = bestY
+              end if
+            end if
+          elseif spellSlot = 3 then
+            heldR = heldR + 1
           end if
         end if
         if castId <> 0 then
-          if castId = bestId and castGround(spellSlot) then
-            ' Area spells lead the observed movement, with a bounded lead.
-            leadX = velocityX * castDelay(spellSlot)
-            leadY = velocityY * castDelay(spellSlot)
-            if targetHeld >= castDelay(spellSlot) then
-              leadX = 0
-              leadY = 0
-            end if
-            if leadX > 2 then
-              leadX = 2
-            elseif leadX < -2 then
-              leadX = -2
-            end if
-            if leadY > 2 then
-              leadY = 2
-            elseif leadY < -2 then
-              leadY = -2
-            end if
-            aimX = bestX + leadX
-            aimY = bestY + leadY
-            if aimX >= 0 and aimX < mapWidth - 1 then
-              if aimY >= 0 and aimY < mapHeight - 1 then
-                accepted = castPoint(spellSlot, originX + side * aimX, originY + side * aimY)
-                actionError = lastActionError()
-                if accepted then
-                  exit sub
-                end if
-              end if
+          accepted = 0
+          if castId <> selfId and castGround(spellSlot) then
+            ' No velocity lead: aim at the target's current tile.
+            if castX >= 0 and castX < mapWidth - 1 and castY >= 0 and castY < mapHeight - 1 then
+              accepted = castPoint(spellSlot, originX + side * castX, originY + side * castY)
+              actionError = lastActionError()
             end if
           end if
           ' Targeted projectiles track their target. Targeted ground rings
           ' offset their center so the enemy is inside the damaging band.
-          ' Also fall back here if a led point is outside the map or vision.
-          accepted = castTarget(spellSlot, castId)
-          actionError = lastActionError()
+          if accepted = 0 then
+            accepted = castTarget(spellSlot, castId)
+            actionError = lastActionError()
+          end if
           if accepted then
+            if castKind = 7 then
+              castLog(spellSlot * 4 + 3) = castLog(spellSlot * 4 + 3) + 1
+            elseif castKind = 2 then
+              castLog(spellSlot * 4 + 0) = castLog(spellSlot * 4 + 0) + 1
+            elseif castKind = 3 or castKind = 6 then
+              castLog(spellSlot * 4 + 1) = castLog(spellSlot * 4 + 1) + 1
+            else
+              castLog(spellSlot * 4 + 2) = castLog(spellSlot * 4 + 2) + 1
+            end if
             exit sub
           end if
         end if
       end if
     end if
-  next spellSlot
+  next slotOrder
 end sub
 
 if drafting then
@@ -848,6 +901,20 @@ if worldTick >= nextLog then
   actTower = 0
   actBack = 0
   actDead = 0
+end if
+
+' The spell note prints 15 seconds apart from the other notes because each
+' BASIC run has a print-event budget.
+if nextCastLog = 0 then
+  nextCastLog = worldTick + tickRate * 15
+end if
+if worldTick >= nextCastLog then
+  nextCastLog = worldTick + tickRate * 30
+  print "CAST t="; worldTick \ tickRate; " qHero="; castLog(0); " qCreep="; castLog(1); " qOther="; castLog(2); " qSelf="; castLog(3); " wHero="; castLog(4); " wCreep="; castLog(5); " wOther="; castLog(6); " wSelf="; castLog(7); " eHero="; castLog(8); " eCreep="; castLog(9); " eOther="; castLog(10); " eSelf="; castLog(11); " rHero="; castLog(12); " rCreep="; castLog(13); " rOther="; castLog(14); " rSelf="; castLog(15); " heldR="; heldR
+  for castReset = 0 to 15
+    castLog(castReset) = 0
+  next castReset
+  heldR = 0
 end if
 
 ' Buy back immediately whenever affordable, including during a long respawn.
@@ -1043,8 +1110,8 @@ end if
 if bestId <> 0 then
   share = 0
   for ally = 0 to allyCount - 1
-    dx = allyX(ally) - bestX
-    dy = allyY(ally) - bestY
+    dx = allyXY(ally * 2) - bestX
+    dy = allyXY(ally * 2 + 1) - bestY
     if dx * dx + dy * dy <= 36 then
       share = share + 1
     end if

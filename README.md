@@ -116,5 +116,13 @@ uv run coworld xp-request --help
   did what was intended: R on heroes 7.3/match vs 3.5, W on heroes 3.7 vs 1.9, E on heroes 1.5 vs 0.3. Arcanist
   was never drafted (taken first by others); second picks were Vanguard 3, Warlock 2, Berserker, Crossbowman,
   Death Knight 1 each. Druid 22 games avg 4,138.
+- Upload v13 (`:v13`, tag version=v13-walk-notes): v12 behavior + WALK diagnostics note.
+  XP Request `xreq_94fec0ca-04e0-43e5-b38d-4ca9eb3d2d5e` (`xp/xp-request-v13-walk-notes.json`), 30 episodes.
+  Avg XP 3,531 ±360, scores above 0 in 7/30, avg score 226, deaths 5.1, zero errors. Same behavior as v12
+  (3,934, 18/30), so **batch-to-batch noise at 30 games is roughly ±400 XP**.
+  First 3 minutes: first contact with soldiers/targets at 43 s (median). Minute 0: 57% standing at the goal with
+  nothing to hit, 34% walking. Minutes 1-2: ~42% fighting with no allied footman within 6 tiles (mostly enemy
+  creeps), 11-22% retreating. March goal was the lane's front building 178/181 times — the lane grid is not
+  ready early, so wave-following is effectively off in the opening. Committed lane B in 90% of samples.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

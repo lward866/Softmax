@@ -55,5 +55,13 @@ uv run coworld xp-request --help
   XP Request `xreq_4235ddc7-350b-43ca-ad04-eabfc8358b2c` (`xp/xp-request-v4-offense-draft.json`), same settings.
   Result vs v2: **not better**. Avg XP 2,052 vs 2,431; deaths 6.2 vs 7.3; level 6.9 vs 7.6; avg XP rank 8.4 vs 8.1.
   Drafted Death Knight 5, Crossbowman 4, Vanguard 1. Hero choice alone does not close the ~2,000 XP gap to other bots.
+- Upload v5 (`:v5`, tag version=v5-positional): v2 + strategy-doc positional play (see `docs/`), POS/ACT notes.
+  XP Request `xreq_7af8a557-6865-4931-bad5-e7afa2e2f92b` (`xp/xp-request-v5-positional.json`), same settings.
+  Result vs v2: **best so far, modest**. Avg XP 2,701 vs 2,431 (+11%); deaths 5.8 vs 7.3; level 7.7 vs 7.6;
+  avg XP rank 7.9 vs 8.1; score still 0 in all 10 (others avg ~4,650 XP). Drafted Vanguard 9/10.
+  Activity (share of decisions): march 27% (22% following a wave), retreat 18%, fight creeps 13%, dead 9%,
+  fight heroes 5%, buildings 1%, camps 1%. Position: middle lane 70% of samples, side lane A 25%, B 5%;
+  median push depth -13 (own half); allied creeps within 6 tiles in 51% of samples; retreat reason mostly
+  "enemy hero near at low HP" (54%) and "HP <= 20%" (27%).
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

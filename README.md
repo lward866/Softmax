@@ -63,5 +63,11 @@ uv run coworld xp-request --help
   fight heroes 5%, buildings 1%, camps 1%. Position: middle lane 70% of samples, side lane A 25%, B 5%;
   median push depth -13 (own half); allied creeps within 6 tiles in 51% of samples; retreat reason mostly
   "enemy hero near at low HP" (54%) and "HP <= 20%" (27%).
+- Upload v6 (`:v6`, tag version=v6-least-crowded-lane): v5 + least-crowded lane choice.
+  XP Request `xreq_c26050a4-245a-47dd-8294-706ec2fd22b7` (`xp/xp-request-v6-lane.json`), same settings.
+  Result vs v5: **best so far, small gain**. Avg XP 2,875 vs 2,701 (+6%; +18% vs v2); first non-zero score
+  (327, Arcanist, 4,374 XP); avg XP rank 7.5 vs 7.9; level 8.1 vs 7.7. But deaths 7.7 vs 5.8 and dead time
+  17% vs 9% of decisions (two Ranger games with 14-15 deaths). Lanes (new classifier): A 38%, M 30%, B 20%,
+  base 10%, jungle 5%. Activity: march 29% (wave 14%), retreat 18%, dead 17%, creeps 12%, heroes 3%, camps 3%.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

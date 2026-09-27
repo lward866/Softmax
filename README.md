@@ -51,5 +51,9 @@ uv run coworld xp-request --help
   Result vs v2: **worse**. Avg XP 1,947 vs 2,431; deaths 9.2 vs 7.3; level 6.7 vs 7.6; retreat share 32% vs 36%.
   Logs show the hero often dying while retreating (hp=0 with retreat=1): lingering near the fight to drink potions
   gets it caught. Previous best remains v1/v2 behavior.
+- Upload v4 (`:v4`, tag version=v4-offense-draft): v2 behavior + damage-first draft (Crossbowman, Death Knight, ...; Vanguard last).
+  XP Request `xreq_4235ddc7-350b-43ca-ad04-eabfc8358b2c` (`xp/xp-request-v4-offense-draft.json`), same settings.
+  Result vs v2: **not better**. Avg XP 2,052 vs 2,431; deaths 6.2 vs 7.3; level 6.9 vs 7.6; avg XP rank 8.4 vs 8.1.
+  Drafted Death Knight 5, Crossbowman 4, Vanguard 1. Hero choice alone does not close the ~2,000 XP gap to other bots.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

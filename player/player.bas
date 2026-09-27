@@ -615,6 +615,12 @@ if drafting then
   end
 end if
 
+' Diagnostics only: a status line every 30 simulated seconds for the private player log.
+if worldTick >= nextLog then
+  nextLog = worldTick + tickRate * 30
+  print "STATUS t="; worldTick \ tickRate; " class="; selfClass; " lvl="; selfLevel; " hp="; selfHp; "/"; selfMaxHp; " mana="; selfMana; " gold="; selfGold; " deaths="; selfDeaths; " respawn="; selfRespawnTicks \ tickRate; " hits="; selfAttacksLanded; " x="; selfX; " y="; selfY; " retreat="; retreating; " spawn="; inOwnSpawn()
+end if
+
 ' Buy back immediately whenever affordable, including during a long respawn.
 if selfHp <= 0 then
   price = buybackPrice()

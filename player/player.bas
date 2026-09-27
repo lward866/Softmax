@@ -3,6 +3,9 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v15 adds an OBJ note (diagnostics only): how often an attackable enemy tower
+' is in reach, covered by our footmen, with the enemy wave cleared, whether we
+' hit it, missed pushes, and whether an allied hero is at that tower.
 ' v14 soldier-wave wrapper and early wave following: facing 4+ enemy footmen
 ' within 6 tiles with no allied footman there, fall back beside the nearest
 ' allied tower and only fight once that tower is shooting and we stand in
@@ -304,6 +307,13 @@ sub readObject(index)
         allyHeroesNear = allyHeroesNear + 1
       end if
       if id <> selfId and allyCount < 10 then
+        if hostDistance < 1000000 and hostAlive then
+          dx = x - hostX
+          dy = y - hostY
+          if dx * dx + dy * dy <= 64 then
+            allyAtTower = 1
+          end if
+        end if
         allyXY(allyCount * 2) = x
         allyXY(allyCount * 2 + 1) = y
         allyCount = allyCount + 1
@@ -392,6 +402,7 @@ sub readObject(index)
       hostX = x
       hostY = y
       hostTarget = target
+      hostAlive = objectAlive(index)
     end if
   end if
   if kind = 2 and distance <= 36 then
@@ -507,6 +518,8 @@ sub observe()
   allyCount = 0
   hostDistance = 1000000
   hostTarget = 0
+  hostAlive = 0
+  allyAtTower = 0
   towerCreeps = 0
   towerTanked = 0
   coverGap = 1000000
@@ -1042,6 +1055,21 @@ if worldTick >= nextWalkLog then
   print "WALK bt="; (worldTick - battleStart) \ tickRate; " x="; myX; " y="; myY; " lane="; myLane; " committed="; committedLane; " goalKind="; goalKind; " gx="; goalX; " gy="; goalY; " goalGap2="; dx * dx + dy * dy; " target="; bestKind; " retreat="; retreating; " shop="; shopTrip; " spawn="; inOwnSpawn(); " creepsNear="; allyCreepsNear; " hp="; hpPct
 end if
 
+' OBJ note: 25 s after the main notes (print budget).
+if nextObjLog = 0 then
+  nextObjLog = worldTick + tickRate * 25
+end if
+if worldTick >= nextObjLog then
+  nextObjLog = worldTick + tickRate * 30
+  print "OBJ t="; worldTick \ tickRate; " towerInReach="; objSeen; " covered="; objCovered; " waveCleared="; objClear; " hitting="; objHit; " missed="; objMissed; " allyAtTower="; objAlly
+  objSeen = 0
+  objCovered = 0
+  objClear = 0
+  objHit = 0
+  objMissed = 0
+  objAlly = 0
+end if
+
 ' Buy back when affordable while keeping the next gear piece's cost (late
 ' in the match, whenever affordable), including during a long respawn.
 if selfHp <= 0 then
@@ -1277,6 +1305,24 @@ dx = myX - homeX
 dy = myY - homeY
 if dx * dx + dy * dy > 400 and gridReady then
   myLane = laneGrid((myY \ 4) * gridW + myX \ 4)
+end if
+' OBJ note counters (per decision, reset every 30 s).
+if hostDistance <= 324 and hostAlive then
+  objSeen = objSeen + 1
+  if allyAtTower then
+    objAlly = objAlly + 1
+  end if
+  if towerTanked and towerCreeps >= 2 then
+    objCovered = objCovered + 1
+    if enemyCreepsNear = 0 then
+      objClear = objClear + 1
+      if bestKind = 4 or bestKind = 5 or bestKind = 1 then
+        objHit = objHit + 1
+      elseif retreating = 0 then
+        objMissed = objMissed + 1
+      end if
+    end if
+  end if
 end if
 inventory()
 spells()

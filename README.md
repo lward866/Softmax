@@ -34,5 +34,7 @@ uv run coworld xp-request --help
 ```
 
 ## Results log
+- Upload: `lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v1` (tag version=baseline-v1).
+- XP Request `xreq_d8772f1a-45d4-4136-9084-3e32cd1525fa` (`xp/xp-request-baseline-v1.json`): v1 vs 9 random league champions, rotate seats, 10 episodes.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

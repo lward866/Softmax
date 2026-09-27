@@ -82,5 +82,11 @@ uv run coworld xp-request --help
   avg 118); deaths 5.3 (= v7); level 8.5; avg XP rank 7.2; zero BASIC errors. Casts: E and R never on
   footmen/buildings (R hit heroes 45 times, E hit heroes 6 times, E self/ally heals 625); W 101 heroes / 423
   footmen. Lane time: A 57%, middle 7%, B 12%, base 24%.
+- v8 confirmation: XP Request `xreq_c5582dc7-a8f9-4637-af96-de1bb399278a` (`xp/xp-request-v8-confirm-30.json`),
+  30 more episodes, same settings. New 30: avg XP 2,900, 4/30 scores above 0. **All 40 v8 games: avg XP 2,956
+  (95% margin ±298), median 2,818, scores above 0 in 7/40 (1,127, 736, 567, 415, 298, 144, 31), avg score 83,
+  deaths 5.2, avg XP rank 7.5, zero BASIC errors.** Versus v2 (2,431 ±475, n=10) the gain looks real; versus v5
+  (2,701) and v7 (2,749) it is within noise. By hero: Vanguard Knight 28 games avg 2,698; Druid Warden 6 games
+  avg 3,876; Death Knight 3 games avg 3,065; Arcanist 1 game 5,143; Ranger 2 games avg 2,550.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

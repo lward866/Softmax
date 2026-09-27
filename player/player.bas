@@ -5,6 +5,7 @@
 ' Abilities and items are used only by our explicit policy commands.
 
 dim owned(22)
+dim preference(9)
 dim inventorySlot(22)
 dim allyIds(9)
 dim seenMaxHp(9)
@@ -17,32 +18,25 @@ sub chooseHero()
   if draftTurnId <> selfId then
     exit sub
   end if
-  bestClass = -1
-  bestScore = -10000
-  for candidate = 0 to 9
-    if heroAvailable(candidate) then
-      role = heroRole(candidate)
-      score = 100
-      for player = 0 to draftPlayerCount() - 1
-        if draftPlayerTeam(player) = selfTeam then
-          picked = draftedClass(draftPlayerId(player))
-          if picked >= 0 then
-            if heroRole(picked) = role then
-              score = score - 100
-            end if
-          end if
-        end if
-      next player
-      if score > bestScore then
-        bestScore = score
-        bestClass = candidate
-      end if
+  ' Offense first: take the first available damage hero in this preference
+  ' order and leave the tank (Vanguard Knight) for last.
+  preference(0) = Crossbowman
+  preference(1) = DeathKnight
+  preference(2) = Berserker
+  preference(3) = DemonHunter
+  preference(4) = Warlock
+  preference(5) = Lich
+  preference(6) = Arcanist
+  preference(7) = DruidWarden
+  preference(8) = Ranger
+  preference(9) = VanguardKnight
+  for pick = 0 to 9
+    if heroAvailable(preference(pick)) then
+      accepted = draftHero(preference(pick))
+      actionError = lastActionError()
+      exit sub
     end if
-  next candidate
-  if bestClass >= 0 then
-    accepted = draftHero(bestClass)
-    actionError = lastActionError()
-  end if
+  next pick
 end sub
 
 sub learnAbilities()
@@ -139,11 +133,6 @@ sub readObject(index)
       enemyX = mapWidth - 1 - x
       enemyY = mapHeight - 1 - y
     elseif kind = 4 then
-      if distance < safeDistance then
-        safeDistance = distance
-        safeX = x
-        safeY = y
-      end if
       ' Protected allied towers still serve as portal anchors.
       dx = x - enemyX
       dy = y - enemyY
@@ -240,7 +229,6 @@ sub observe()
   bestDistance = 1000000
   threatDistance = 1000000
   forwardDistance = 1000000
-  safeDistance = 1000000
   friendlyPower = 0
   enemyPower = 0
   allies = 0
@@ -384,8 +372,8 @@ sub inventory()
   ' Reserve three slots for recovery and travel, two for useful equipment,
   ' and one for a role-specific burst consumable. Stacks top up on return.
   budget = selfGold
-  buy(1, 30, 3)
   buy(8, 100, 1)
+  buy(1, 30, 2)
   buy(21, 100, 2)
   buy(22, 45, 2)
   if role = 0 or role = 4 then
@@ -766,9 +754,6 @@ end if
 if selfMana * 8 < selfMaxMana and bestId = 0 then
   retreating = 1
 end if
-if retreating and selfHp * 2 >= selfMaxHp and selfMana * 8 >= selfMaxMana then
-  retreating = 0
-end if
 if inOwnSpawn() then
   if selfHp * 10 < selfMaxHp * 9 or selfMana * 10 < selfMaxMana * 9 then
     moveTo(spawnX, spawnY, 0)
@@ -782,26 +767,6 @@ if dodge and selfRootTicks = 0 then
   end
 end if
 if retreating then
-  ' With potions and above 1/8 health, heal beside the nearest allied tower
-  ' instead of walking back to spawn; the flag clears at half health.
-  if selfHp * 8 >= selfMaxHp and safeDistance < 1000000 and (owned(1) > 0 or owned(2) > 0) then
-    if safeDistance > 9 then
-      moveTo(safeX, safeY, 0)
-      end
-    end if
-    for potion = 2 to 1 step -1
-      if owned(potion) > 0 then
-        if itemCooldown(inventorySlot(potion)) = 0 then
-          accepted = useItem(inventorySlot(potion))
-          actionError = lastActionError()
-          if accepted then
-            end
-          end if
-        end if
-      end if
-    next potion
-    end
-  end if
   ' A safe scroll saves the long return trip; damage and control can punish it.
   if owned(21) > 0 and selfPortalCooldown = 0 and selfRootTicks = 0 then
     dx = myX - homeX

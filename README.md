@@ -17,7 +17,8 @@ BASIC code, no LLM calls, small test batches, no league submission without the o
 ## Current strategy
 `player/player.bas` (v8) is the bundled Baseline plus: positional play and pressure-based retreat (v5),
 live lane buckets from allied buildings with least-crowded rotation (v7), and spell gates that keep E/R for
-enemy heroes (v8), a fixed draft order led by the Druid Warden (v9), and tower safety plus gear-first shopping (v11). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
+enemy heroes (v8), a fixed draft order led by the Druid Warden (v9), tower safety plus gear-first shopping (v11), spell timing (v12), and the soldier-wave wrapper with
+ranged-first targeting and opening wave following (v14). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
 Scoring is lifetime XP minus 200 per simulated minute, so faster wins score higher.
 
 ## Commands
@@ -124,5 +125,12 @@ uv run coworld xp-request --help
   nothing to hit, 34% walking. Minutes 1-2: ~42% fighting with no allied footman within 6 tiles (mostly enemy
   creeps), 11-22% retreating. March goal was the lane's front building 178/181 times — the lane grid is not
   ready early, so wave-following is effectively off in the opening. Committed lane B in 90% of samples.
+- Upload v14 (`:v14`, tag version=v14-wave-wrapper): v13 + soldier-wave wrapper at own tower, ranged footmen first,
+  opening lane split for wave following.
+  XP Request `xreq_b4d73739-f971-4024-a7f7-1dd185c55d99` (`xp/xp-request-v14-wave-wrapper.json`), 30 episodes.
+  Result vs v12+v13 combined (60 games, same behavior): **best so far, moderately confident**. Avg XP 4,016 ±367
+  vs 3,733 ±252; scores above 0 in 15/30 (50%) vs 25/60 (42%); avg score 471 vs 279; deaths 4.2 vs 4.8; dead
+  time 5.2% vs 6.6%; avg XP rank 5.7 vs 6.1; zero BASIC errors. First 3 minutes: walking far 6% (was 12%),
+  idle at goal 16% (22%), fighting with soldiers 29% (24%), fighting alone 32% (30%), retreating 17% (11%).
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

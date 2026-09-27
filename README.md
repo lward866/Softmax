@@ -36,5 +36,9 @@ uv run coworld xp-request --help
 ## Results log
 - Upload: `lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v1` (tag version=baseline-v1).
 - XP Request `xreq_d8772f1a-45d4-4136-9084-3e32cd1525fa` (`xp/xp-request-baseline-v1.json`): v1 vs 9 random league champions, rotate seats, 10 episodes.
+  Result (all 10 hit the 20-min time limit, ~4,000 XP time penalty): v1 scored **0 in every match**.
+  v1 averaged ~1,800 lifetime XP vs ~4,600 for the other 9 bots; it had the lowest XP on its team in 7/10.
+  The league's own `Polyworld GOTA base.bas:v2` also averaged 0. Top random opponent: `khors:v208` (~5,300 avg score).
+  Player logs contain only start/complete lines (the Baseline prints nothing); events.json was still pending.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

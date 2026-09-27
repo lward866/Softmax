@@ -148,5 +148,11 @@ uv run coworld xp-request --help
   82% (from 62%; missed 3 s vs 6 s per match), but time with a tower in reach did not rise (64 s vs 73 s per
   match). Across v14-v16, 85 of 90 matches ended at the time limit; only 5 ended with a god kill.
   Previous best remains v14 (behavior shared by v15).
+- Upload v17 (`:v17`, tag version=v17-camps): v15 + jungle camp detours between waves.
+  XP Request `xreq_4b6b65a4-51a6-4f81-98f9-d754cbdec52f` (`xp/xp-request-v17-camps.json`), 30 episodes.
+  Result vs v14+v15 (60 games): **worse**. Avg XP 3,724 ±419 vs 3,954 ±257; median 3,568 vs 3,972; scores above
+  0 10/30 vs 30/60; avg score 336 vs 410; deaths 4.8 vs 4.5; dead time 7.5% vs 5.7%; zero errors. Camp time rose
+  only 2.4% → 3.7%: 7.7 detours per match, 6.2 of which found the camp empty (already taken by other heroes).
+  Footman fighting fell 21.2% → 19.0%. Previous best remains v14 (v15 behavior).
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

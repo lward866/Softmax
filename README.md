@@ -15,8 +15,9 @@ BASIC code, no LLM calls, small test batches, no league submission without the o
 - Runtime: `game-hosted` — the player is a single BASIC file, `player/player.bas`.
 
 ## Current strategy
-`player/player.bas` is an unmodified copy of the bundled **Baseline** player (draft missing roles,
-farm lanes, last-hit, push exposed buildings and the god, level R/W/E/Q, cast spells, shop, buy back).
+`player/player.bas` (v8) is the bundled Baseline plus: positional play and pressure-based retreat (v5),
+live lane buckets from allied buildings with least-crowded rotation (v7), and spell gates that keep E/R for
+enemy heroes (v8). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
 Scoring is lifetime XP minus 200 per simulated minute, so faster wins score higher.
 
 ## Commands
@@ -75,5 +76,11 @@ uv run coworld xp-request --help
   (v6 7.7); dead time 6% vs 9%; one non-zero score (290); zero BASIC errors. Lane time: A 56%, middle 11%, B 14%,
   base 19% (v5 middle ~70%). Rotations 0.2/match. Mean share 0.17, cover 0.46, attack lock 1.5 s.
   Allied creeps within 6 tiles 42% of samples (v5 49%).
+- Upload v8 (`:v8`, tag version=v8-spell-gates): v7 + spell use card gates (see `docs/`).
+  XP Request `xreq_143041d8-cf83-481d-b7a5-06547db57f0a` (`xp/xp-request-v8-spell-gates.json`), same settings.
+  Result: **best so far**. Avg XP 3,123 vs 2,749 (v7) and 2,431 (v2); scores above 0 in 3/10 (736, 415, 31;
+  avg 118); deaths 5.3 (= v7); level 8.5; avg XP rank 7.2; zero BASIC errors. Casts: E and R never on
+  footmen/buildings (R hit heroes 45 times, E hit heroes 6 times, E self/ally heals 625); W 101 heroes / 423
+  footmen. Lane time: A 57%, middle 7%, B 12%, base 24%.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

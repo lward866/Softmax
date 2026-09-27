@@ -3,6 +3,9 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v10 hits exposed enemy buildings when an allied footman is closer to them
+' than we are (GotA Building Card; current rules: 200 XP and 75 gold to the
+' killer), keeping hero fights first, and logs building and inventory notes.
 ' v9 drafts by a fixed preference order (see chooseHero).
 ' v8 adds spell gates (GotA Spell Use Card, current-game ranges): E and R only
 ' on enemy heroes, delayed E/R need two heroes or one at 40% HP, W on footmen
@@ -310,6 +313,13 @@ sub readObject(index)
       if distance <= 36 then
         allyCreepsNear = allyCreepsNear + 1
       end if
+      if exposedId <> 0 and structureCover = 0 then
+        dx = x - exposedX
+        dy = y - exposedY
+        if dx * dx + dy * dy < exposedGap then
+          structureCover = 1
+        end if
+      end if
       if hostDistance < 1000000 and distance <= 400 then
         dx = x - hostX
         dy = y - hostY
@@ -381,6 +391,27 @@ sub readObject(index)
     exit sub
   end if
   target = objectTarget(index)
+  ' Exposed enemy structure: the god beats barracks, barracks beat towers,
+  ' then the nearest.
+  if kind = 1 or kind = 4 or kind = 5 then
+    rank = 1
+    if kind = 1 then
+      rank = 3
+    elseif kind = 5 then
+      rank = 2
+    end if
+    if rank > exposedRank or (rank = exposedRank and distance < exposedGap) then
+      exposedRank = rank
+      exposedId = id
+      exposedKind = kind
+      exposedIndex = index
+      exposedHp = hp
+      exposedX = x
+      exposedY = y
+      exposedGap = distance
+      exposedOnMe = kind = 4 and target = selfId
+    end if
+  end if
   if kind = 4 and target = selfId then
     towerAggro = 1
   end if
@@ -446,6 +477,11 @@ sub observe()
   safeDistance = 1000000
   waveScore = 1000000
   foes = 0
+  exposedId = 0
+  exposedRank = 0
+  exposedGap = 1000000
+  exposedOnMe = 0
+  structureCover = 0
   anchorCount = 0
   anchorsBuilt = 0
   allyCount = 0
@@ -924,6 +960,19 @@ if worldTick >= nextCastLog then
   heldR = 0
 end if
 
+' Building and inventory note, 8 seconds after the main notes (print budget).
+if nextBldLog = 0 then
+  nextBldLog = worldTick + tickRate * 8
+end if
+if worldTick >= nextBldLog then
+  nextBldLog = worldTick + tickRate * 30
+  print "BLD t="; worldTick \ tickRate; " seen="; bldSeen; " cover="; bldCover; " towerOnMe="; bldOnMe; " orders="; bldOrders; " lastKind="; lastExposedKind; " items="; itemId(0); ","; itemId(1); ","; itemId(2); ","; itemId(3); ","; itemId(4); ","; itemId(5); " gold="; selfGold
+  bldSeen = 0
+  bldCover = 0
+  bldOnMe = 0
+  bldOrders = 0
+end if
+
 ' Buy back immediately whenever affordable, including during a long respawn.
 if selfHp <= 0 then
   if worldTick >= nextDeadTick then
@@ -1104,6 +1153,30 @@ if gridW * gridH <= 900 and (laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or
     next cell
     if gridCursor >= gridW * gridH then
       gridReady = 1
+    end if
+  end if
+end if
+' Building card: with an allied footman closer to the exposed structure than
+' we are, the structure beats footmen and camps; enemy heroes keep priority.
+if exposedId <> 0 then
+  bldSeen = bldSeen + 1
+  if structureCover then
+    bldCover = bldCover + 1
+  end if
+  if exposedOnMe then
+    bldOnMe = bldOnMe + 1
+  end if
+  lastExposedKind = exposedKind
+  if structureCover and bestKind <> 2 then
+    if exposedId <> blockedId or worldTick >= blockedUntil then
+      bestId = exposedId
+      bestKind = exposedKind
+      bestIndex = exposedIndex
+      bestHp = exposedHp
+      bestX = exposedX
+      bestY = exposedY
+      bestDistance = exposedGap
+      bldOrders = bldOrders + 1
     end if
   end if
 end if

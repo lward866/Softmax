@@ -69,5 +69,11 @@ uv run coworld xp-request --help
   (327, Arcanist, 4,374 XP); avg XP rank 7.5 vs 7.9; level 8.1 vs 7.7. But deaths 7.7 vs 5.8 and dead time
   17% vs 9% of decisions (two Ranger games with 14-15 deaths). Lanes (new classifier): A 38%, M 30%, B 20%,
   base 10%, jungle 5%. Activity: march 29% (wave 14%), retreat 18%, dead 17%, creeps 12%, heroes 3%, camps 3%.
+- Upload v7 (`:v7`, tag version=v7-live-lane-buckets): v5 + frame-spec lanes from live allied buildings (cached grid).
+  XP Request `xreq_2df8e5ce-adb2-40c4-bb99-2a0d64636b17` (`xp/xp-request-v7-live-lanes.json`), same settings.
+  Result vs v5: **pass on the spec's lane goals, XP flat**. Avg XP 2,749 vs 2,701 (v6 2,875); deaths 5.3 vs 5.8
+  (v6 7.7); dead time 6% vs 9%; one non-zero score (290); zero BASIC errors. Lane time: A 56%, middle 11%, B 14%,
+  base 19% (v5 middle ~70%). Rotations 0.2/match. Mean share 0.17, cover 0.46, attack lock 1.5 s.
+  Allied creeps within 6 tiles 42% of samples (v5 49%).
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

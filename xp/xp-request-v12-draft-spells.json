@@ -1,0 +1,70 @@
+{
+  "idempotency_key": "v12-draft-spells-random-30ep-001",
+  "target": {
+    "league_id": "league_3c60897b-25cf-4b37-9d1a-8554c1198f28"
+  },
+  "roster": [
+    {
+      "player": {
+        "policy_ref": "lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v12"
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    }
+  ],
+  "num_episodes": 30,
+  "notes": "A/B candidate: v12 (v11 + Death Knight moved down the draft + spell timing: committed-target slow E/R, R mana reserve, no heals in spawn, last W charge kept for heroes) vs 9 random league champions, rotate seats, 30 episodes"
+}

@@ -3,6 +3,10 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v12 moves Death Knight down the draft and tightens spell timing: a slow
+' E/R may hit one hero that is locked in a fight (attacking us or an allied
+' hero, or stunned/rooted); keep mana for R when it is nearly ready and a
+' hero is close; no heals in our own spawn; keep the last W charge for heroes.
 ' v11 tower safety and shopping: notice every enemy tower that targets us,
 ' including protected ones; only stand in an enemy tower's range while it is
 ' shooting an allied footman and two or more footmen are under it; save gold
@@ -376,7 +380,18 @@ sub readObject(index)
     foeX(foes) = x
     foeY(foes) = y
     foeHp(foes) = hp
+    ' foeClass carries +16 when this hero is locked in a fight.
     foeClass(foes) = objectClass(index)
+    foeAim = objectTarget(index)
+    if objectStunTicks(index) > 0 or objectRootTicks(index) > 0 or foeAim = selfId then
+      foeClass(foes) = foeClass(foes) + 16
+    elseif foeAim <> 0 then
+      for ally = 0 to allies - 1
+        if allyIds(ally) = foeAim then
+          foeClass(foes) = objectClass(index) + 16
+        end if
+      next ally
+    end if
     foeGap(foes) = distance
     if hp > seenMaxHp(objectClass(index)) then
       seenMaxHp(objectClass(index)) = hp
@@ -795,6 +810,22 @@ sub spells()
     exit sub
   end if
   ' R first, then E, W, Q: an ultimate with a legal hero shot is spent now.
+  ' With an enemy hero within 8 tiles, never spend the last charge on footmen.
+  keepCharge = 0
+  for foe = 0 to foes - 1
+    if foeGap(foe) <= 64 then
+      keepCharge = abilityCharges(1) <= 1
+    end if
+  next foe
+  ' Keep R's mana when R is ready within 3 seconds and a hero is within 8 tiles.
+  keepMana = 0
+  if abilityLevel(3) > 0 and abilityCooldown(3) <= 72 then
+    for foe = 0 to foes - 1
+      if foeGap(foe) <= 64 then
+        keepMana = abilityManaCost(3)
+      end if
+    next foe
+  end if
   for slotOrder = 0 to 3
     spellSlot = 3 - slotOrder
     charges = abilityCharges(spellSlot)
@@ -804,7 +835,14 @@ sub spells()
     restore = abilityRestore(spellSlot)
     cost = abilityManaCost(spellSlot)
     if abilityLevel(spellSlot) > 0 and charges > 0 then
-      if abilityCooldown(spellSlot) = 0 and selfMana >= cost then
+      spare = selfMana - cost >= keepMana or spellSlot = 3
+      if healing > 0 and healMissing >= healing * 2 then
+        spare = 1
+      end if
+      if (healing > 0 or restore > 0) and inOwnSpawn() then
+        spare = 0
+      end if
+      if abilityCooldown(spellSlot) = 0 and selfMana >= cost and spare then
         castId = 0
         castKind = 0
         if healing > 0 and healMissing * 10 >= healing * 7 then
@@ -844,7 +882,8 @@ sub spells()
                 crowd = crowd + 1
               end if
             next foe
-            if crowd < 2 and foeHp(heroPick) * 10 > seenMaxHp(foeClass(heroPick)) * 4 then
+            foeAim = foeClass(heroPick) - (foeClass(heroPick) \ 16) * 16
+            if crowd < 2 and foeClass(heroPick) < 16 and foeHp(heroPick) * 10 > seenMaxHp(foeAim) * 4 then
               heroPick = -1
             end if
           end if
@@ -857,7 +896,7 @@ sub spells()
             ' Q and W may farm footmen or camps when no hero is in range.
             if bestDistance <= reach and bestDistance >= castMinimum(spellSlot) * castMinimum(spellSlot) then
               ' Save the last recharging charge for valuable targets.
-              if bestKind <> 3 or charges > 1 or recharge <= tickRate or bestHp <= damage then
+              if keepCharge = 0 and (bestKind <> 3 or charges > 1 or recharge <= tickRate or bestHp <= damage) then
                 castId = bestId
                 castKind = bestKind
                 castX = bestX

@@ -160,5 +160,10 @@ uv run coworld xp-request --help
   OBJ note; 60 hosted games avg XP 3,954, scores above 0 in 50%) submitted to the Gods of the Arena league,
   submission `sub_5a8c43c2-8e1c-4b56-ae1a-90a8ae865a0c`, auto champion = always.
   `player/player.bas` restored to the v15 source.
+- **League check (2026-09-27 23:35 UTC, after rounds 875-877):** division rank **11 of 22**, standing 770
+  (round averages 856, 395, 678). 33 league games: avg score 643, above 0 in 17/33. Field averages over the
+  same rounds: arisk 3,687, khors 2,807, relh 2,773, richard 2,563, violet-selective-camp-150 1,937,
+  indigo-selective-camp-routing-r1 1,801, red-kite 1,721, black-kite 1,675, gota-basic-distill 1,482,
+  BeWellBot 1,112, **ours 643**, gota-g006 507, ... Polyworld GOTA base.bas 18.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

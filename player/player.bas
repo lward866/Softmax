@@ -139,6 +139,11 @@ sub readObject(index)
       enemyX = mapWidth - 1 - x
       enemyY = mapHeight - 1 - y
     elseif kind = 4 then
+      if distance < safeDistance then
+        safeDistance = distance
+        safeX = x
+        safeY = y
+      end if
       ' Protected allied towers still serve as portal anchors.
       dx = x - enemyX
       dy = y - enemyY
@@ -235,6 +240,7 @@ sub observe()
   bestDistance = 1000000
   threatDistance = 1000000
   forwardDistance = 1000000
+  safeDistance = 1000000
   friendlyPower = 0
   enemyPower = 0
   allies = 0
@@ -378,8 +384,8 @@ sub inventory()
   ' Reserve three slots for recovery and travel, two for useful equipment,
   ' and one for a role-specific burst consumable. Stacks top up on return.
   budget = selfGold
+  buy(1, 30, 3)
   buy(8, 100, 1)
-  buy(1, 30, 2)
   buy(21, 100, 2)
   buy(22, 45, 2)
   if role = 0 or role = 4 then
@@ -760,6 +766,9 @@ end if
 if selfMana * 8 < selfMaxMana and bestId = 0 then
   retreating = 1
 end if
+if retreating and selfHp * 2 >= selfMaxHp and selfMana * 8 >= selfMaxMana then
+  retreating = 0
+end if
 if inOwnSpawn() then
   if selfHp * 10 < selfMaxHp * 9 or selfMana * 10 < selfMaxMana * 9 then
     moveTo(spawnX, spawnY, 0)
@@ -773,6 +782,26 @@ if dodge and selfRootTicks = 0 then
   end
 end if
 if retreating then
+  ' With potions and above 1/8 health, heal beside the nearest allied tower
+  ' instead of walking back to spawn; the flag clears at half health.
+  if selfHp * 8 >= selfMaxHp and safeDistance < 1000000 and (owned(1) > 0 or owned(2) > 0) then
+    if safeDistance > 9 then
+      moveTo(safeX, safeY, 0)
+      end
+    end if
+    for potion = 2 to 1 step -1
+      if owned(potion) > 0 then
+        if itemCooldown(inventorySlot(potion)) = 0 then
+          accepted = useItem(inventorySlot(potion))
+          actionError = lastActionError()
+          if accepted then
+            end
+          end if
+        end if
+      end if
+    next potion
+    end
+  end if
   ' A safe scroll saves the long return trip; damage and control can punish it.
   if owned(21) > 0 and selfPortalCooldown = 0 and selfRootTicks = 0 then
     dx = myX - homeX

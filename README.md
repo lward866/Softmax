@@ -94,5 +94,13 @@ uv run coworld xp-request --help
   Result vs v8 (40 games): **clear improvement**. Avg XP 3,579 ±410 vs 2,956 ±298; median 3,651 vs 2,818;
   scores above 0 in 10/30 (best 1,881) vs 7/40; avg score 295 vs 83; avg XP rank 5.9 vs 7.5; deaths 5.6 vs 5.2;
   zero BASIC errors. Heroes: Druid 22 games avg 3,953; Death Knight 6 games avg 2,424; Vanguard 2 games avg 2,926.
+- Upload v10 (`:v10`, tag version=v10-buildings): v9 + building card (structure target with footman cover).
+  XP Request `xreq_4a7c1e49-2885-4d11-9bdc-6d961ba63daa` (`xp/xp-request-v10-buildings.json`), 30 episodes.
+  Result vs v9: **not better**. Avg XP 3,521 ±390 vs 3,579 ±410; scores above 0 10/30 (same), avg score 268 vs
+  295; deaths 6.7 vs 5.6; dead time 10.6% vs 8.2%; building time 1.6% vs 0.8%. A tower targeted the hero in 25%
+  of decisions with an exposed structure in reach; cover only 33%. **One match lost the VM at ~12 min (BASIC
+  instruction limit)** — the card's hard-fail condition. Druid 23 games avg 3,749 (v9 3,953).
+  Inventory (per 30 s note): Ranger Boots almost always; Arcane Spellbook in ~22% of notes, Knight Armor ~5%.
+  Previous best remains v9.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

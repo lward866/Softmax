@@ -140,5 +140,13 @@ uv run coworld xp-request --help
   covered by our footmen 51% of that time; the push window (covered, enemy wave cleared) is ~17 s per match
   (median). In the window the hero hits a structure 62% and misses 35% (~6 s per match). An allied hero is at
   that tower 17% of the in-reach time. Matches split by hitting time: avg XP 3,540 / 3,929 / 4,208 (low→high).
+- Upload v16 (`:v16`, tag version=v16-push): v15 + push-window tower target, fall-back only near own tower,
+  step back to own wave front. XP Request `xreq_7804b640-e70f-466c-96f2-b459393f4b9e`
+  (`xp/xp-request-v16-push.json`), 30 episodes.
+  Result vs v14+v15 (60 games): **not better**. Avg XP 3,784 ±432 vs 3,954 ±257; median 4,080 vs 3,972; scores
+  above 0 16/30 vs 30/60; avg score 347 vs 410; deaths 4.8 vs 4.5; zero errors. Push window hit rate rose to
+  82% (from 62%; missed 3 s vs 6 s per match), but time with a tower in reach did not rise (64 s vs 73 s per
+  match). Across v14-v16, 85 of 90 matches ended at the time limit; only 5 ended with a god kill.
+  Previous best remains v14 (behavior shared by v15).
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

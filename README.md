@@ -15,6 +15,8 @@ BASIC code, no LLM calls, small test batches, no league submission without the o
 - Runtime: `game-hosted` — the player is a single BASIC file, `player/player.bas`.
 
 ## Current strategy
+Submitted to the league: **v15** (v14 behavior). Later experiments (v16 push, v17 camps) were not better.
+
 `player/player.bas` (v8) is the bundled Baseline plus: positional play and pressure-based retreat (v5),
 live lane buckets from allied buildings with least-crowded rotation (v7), and spell gates that keep E/R for
 enemy heroes (v8), a fixed draft order led by the Druid Warden (v9), tower safety plus gear-first shopping (v11), spell timing (v12), and the soldier-wave wrapper with
@@ -154,5 +156,9 @@ uv run coworld xp-request --help
   0 10/30 vs 30/60; avg score 336 vs 410; deaths 4.8 vs 4.5; dead time 7.5% vs 5.7%; zero errors. Camp time rose
   only 2.4% → 3.7%: 7.7 detours per match, 6.2 of which found the camp empty (already taken by other heroes).
   Footman fighting fell 21.2% → 19.0%. Previous best remains v14 (v15 behavior).
+- **League submission (owner's request):** `lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v15` (v14 behavior +
+  OBJ note; 60 hosted games avg XP 3,954, scores above 0 in 50%) submitted to the Gods of the Arena league,
+  submission `sub_5a8c43c2-8e1c-4b56-ae1a-90a8ae865a0c`, auto champion = always.
+  `player/player.bas` restored to the v15 source.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

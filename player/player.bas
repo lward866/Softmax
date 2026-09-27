@@ -3,11 +3,6 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
-' v17 farms jungle camps between waves: while marching at 70%+ HP with no enemy
-' footmen or heroes near, detour to the nearest level-appropriate camp within
-' 15 tiles, clear it, and skip a camp found empty for 60 s.
-' laneGrid cells 860-873 hold each camp's next-check tick and 874-883 hold
-' note counters (the grid itself uses at most 860 cells; arrays are capped).
 ' v15 adds an OBJ note (diagnostics only): how often an attackable enemy tower
 ' is in reach, covered by our footmen, with the enemy wave cleared, whether we
 ' hit it, missed pushes, and whether an allied hero is at that tower.
@@ -240,9 +235,6 @@ sub readObject(index)
     if objectReturning(index) or objectAlive(index) = 0 then
       exit sub
     end if
-    if objectCamp(index) = detourCamp - 1 then
-      detourAlive = 1
-    end if
     camp = objectCamp(index)
     tier = campTier(camp)
     campDx = originX + side * campX(camp) - myX
@@ -351,6 +343,9 @@ sub readObject(index)
       if hostDistance < 1000000 and distance <= 400 then
         dx = x - hostX
         dy = y - hostY
+        if dx * dx + dy * dy < coverGap then
+          coverGap = dx * dx + dy * dy
+        end if
         if dx * dx + dy * dy <= 100 then
           towerCreeps = towerCreeps + 1
         end if
@@ -379,6 +374,15 @@ sub readObject(index)
           laneFront(laneId) = dx * dx + dy * dy
           laneFrontX(laneId) = x
           laneFrontY(laneId) = y
+        end if
+      end if
+      ' The wave front is the allied creep within 20 tiles closest to the enemy god.
+      if distance <= 400 then
+        dx = x - enemyX
+        dy = y - enemyY
+        front = dx * dx + dy * dy
+        if front < waveScore then
+          waveScore = front
         end if
       end if
     end if
@@ -507,8 +511,8 @@ sub observe()
   threatDistance = 1000000
   forwardDistance = 1000000
   safeDistance = 1000000
+  waveScore = 1000000
   foes = 0
-  detourAlive = 0
   anchorCount = 0
   anchorsBuilt = 0
   allyCount = 0
@@ -518,6 +522,7 @@ sub observe()
   allyAtTower = 0
   towerCreeps = 0
   towerTanked = 0
+  coverGap = 1000000
   for laneReset = 0 to 3
     laneHeroes(laneReset) = 0
     laneCreeps(laneReset) = 0
@@ -990,10 +995,10 @@ if worldTick >= nextLog then
   ' Team-relative position: lane is from the own-base diagonal (A = x-low
   ' side lane, B = y-high side lane, M = middle); push grows toward the enemy god.
   print "STATUS t="; worldTick \ tickRate; " class="; selfClass; " lvl="; selfLevel; " hp="; selfHp; "/"; selfMaxHp; " mana="; selfMana; " gold="; selfGold; " deaths="; selfDeaths; " respawn="; selfRespawnTicks \ tickRate; " hits="; selfAttacksLanded; " x="; selfX; " y="; selfY; " retreat="; retreating; " spawn="; inOwnSpawn()
-  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; myLane; " committed="; committedLane; " heroesA="; laneHeroes(1); " heroesM="; laneHeroes(2); " heroesB="; laneHeroes(3); " creepsA="; laneCreeps(1); " creepsM="; laneCreeps(2); " creepsB="; laneCreeps(3); " rotate="; rotateReason$; " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; laneFront(committedLane) < 1000000; " why="; retreatReason
-  print "LANE t="; worldTick \ tickRate; " dryTicks="; dryTicks; " rotations="; rotations; " waveHold="; laneGrid(882); " waveFallBack="; laneGrid(883); " gridReady="; gridReady
-  laneGrid(882) = 0
-  laneGrid(883) = 0
+  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; myLane; " committed="; committedLane; " heroesA="; laneHeroes(1); " heroesM="; laneHeroes(2); " heroesB="; laneHeroes(3); " creepsA="; laneCreeps(1); " creepsM="; laneCreeps(2); " creepsB="; laneCreeps(3); " rotate="; rotateReason$; " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
+  print "LANE t="; worldTick \ tickRate; " dryTicks="; dryTicks; " rotations="; rotations; " waveHold="; waveHold; " waveFallBack="; waveBack; " gridReady="; gridReady
+  waveHold = 0
+  waveBack = 0
   print "ACT t="; worldTick \ tickRate; " fightHero="; actHero; " fightCreep="; actCreep; " fightBuilding="; actBuilding; " fightCamp="; actCamp; " march="; actMarch; " followWave="; actWave; " retreat="; actRetreat; " spawnWait="; actSpawn; " dodge="; actDodge; " towerStep="; actTower; " backOff="; actBack; " dead="; actDead
   actHero = 0
   actCreep = 0
@@ -1056,13 +1061,13 @@ if nextObjLog = 0 then
 end if
 if worldTick >= nextObjLog then
   nextObjLog = worldTick + tickRate * 30
-  print "OBJ t="; worldTick \ tickRate; " towerInReach="; laneGrid(874); " covered="; laneGrid(875); " waveCleared="; laneGrid(876); " hitting="; laneGrid(877); " missed="; laneGrid(878); " allyAtTower="; laneGrid(879); " campDetours="; laneGrid(881); " campVisits="; laneGrid(880)
-  laneGrid(874) = 0
-  laneGrid(875) = 0
-  laneGrid(876) = 0
-  laneGrid(877) = 0
-  laneGrid(878) = 0
-  laneGrid(879) = 0
+  print "OBJ t="; worldTick \ tickRate; " towerInReach="; objSeen; " covered="; objCovered; " waveCleared="; objClear; " hitting="; objHit; " missed="; objMissed; " allyAtTower="; objAlly
+  objSeen = 0
+  objCovered = 0
+  objClear = 0
+  objHit = 0
+  objMissed = 0
+  objAlly = 0
 end if
 
 ' Buy back when affordable while keeping the next gear piece's cost (late
@@ -1259,7 +1264,7 @@ observe()
 ' building falls, keeping busy decisions under the BASIC instruction limit.
 gridW = (mapWidth + 3) \ 4
 gridH = (mapHeight + 3) \ 4
-if gridW * gridH <= 860 and (laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or laneAnchorRear(3) >= 0) then
+if gridW * gridH <= 900 and (laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or laneAnchorRear(3) >= 0) then
   signature = 0
   for label = 1 to 3
     if laneAnchorRear(label) >= 0 then
@@ -1303,18 +1308,18 @@ if dx * dx + dy * dy > 400 and gridReady then
 end if
 ' OBJ note counters (per decision, reset every 30 s).
 if hostDistance <= 324 and hostAlive then
-  laneGrid(874) = laneGrid(874) + 1
+  objSeen = objSeen + 1
   if allyAtTower then
-    laneGrid(879) = laneGrid(879) + 1
+    objAlly = objAlly + 1
   end if
   if towerTanked and towerCreeps >= 2 then
-    laneGrid(875) = laneGrid(875) + 1
+    objCovered = objCovered + 1
     if enemyCreepsNear = 0 then
-      laneGrid(876) = laneGrid(876) + 1
+      objClear = objClear + 1
       if bestKind = 4 or bestKind = 5 or bestKind = 1 then
-        laneGrid(877) = laneGrid(877) + 1
+        objHit = objHit + 1
       elseif retreating = 0 then
-        laneGrid(878) = laneGrid(878) + 1
+        objMissed = objMissed + 1
       end if
     end if
   end if
@@ -1416,10 +1421,10 @@ end if
 if enemyCreepsNear >= 4 and allyCreepsNear = 0 and safeDistance < 1000000 and bestKind <> 2 then
   if safeShot = 0 or safeDistance > 81 then
     if safeDistance > 36 then
-      laneGrid(883) = laneGrid(883) + 1
+      waveBack = waveBack + 1
       moveTo(safeX, safeY, 0)
     else
-      laneGrid(882) = laneGrid(882) + 1
+      waveHold = waveHold + 1
     end if
     end
   end if
@@ -1547,7 +1552,7 @@ actMarch = actMarch + 1
 goalX = myX
 goalY = myY
 ' goalKind for the WALK note: 1 lane wave front, 2 lane front building,
-' 3 held back by an uncovered tower, 4 camp detour, 0 nowhere to go.
+' 3 held back by an uncovered tower, 0 nowhere to go.
 goalKind = 0
 if laneFront(committedLane) < 1000000 then
   actWave = actWave + 1
@@ -1568,58 +1573,6 @@ if hostDistance < 1000000 and (towerTanked = 0 or towerCreeps < 2) then
     goalX = myX
     goalY = myY
     goalKind = 3
-  end if
-end if
-' Camps between waves (see header). Detours are dropped when conditions fail.
-if gridW * gridH <= 860 and hpPct >= 70 and enemyCreepsNear = 0 and enemyHeroesNear = 0 and shopTrip = 0 and retreating = 0 then
-  ' Round-robin search: 4 camps per decision, never while the lane grid is
-  ' being rebuilt, to stay under the instruction limit. The nearest match
-  ' of each full pass becomes the detour.
-  if detourCamp = 0 and gridCursor >= gridW * gridH then
-    if campCursor = 0 then
-      campBestGap = 226
-      cycleCamp = 0
-    end if
-    for camp = campCursor to campCursor + 3
-      if camp < campCount() and camp < 14 then
-        tier = campTier(camp)
-        if selfLevel >= 1 + (tier - 1) * 3 and laneGrid(860 + camp) <= worldTick then
-          campDx = originX + side * campX(camp) - myX
-          campDy = originY + side * campY(camp) - myY
-          if campDx * campDx + campDy * campDy < campBestGap then
-            campBestGap = campDx * campDx + campDy * campDy
-            cycleCamp = camp + 1
-          end if
-        end if
-      end if
-    next camp
-    campCursor = campCursor + 4
-    if campCursor >= campCount() or campCursor >= 14 then
-      campCursor = 0
-      detourCamp = cycleCamp
-    end if
-    if detourCamp <> 0 then
-      laneGrid(881) = laneGrid(881) + 1
-    end if
-  end if
-else
-  detourCamp = 0
-end if
-if detourCamp <> 0 then
-  camp = detourCamp - 1
-  campDx = originX + side * campX(camp)
-  campDy = originY + side * campY(camp)
-  dx = campDx - myX
-  dy = campDy - myY
-  if dx * dx + dy * dy <= 9 and detourAlive = 0 then
-    ' At the camp with nothing alive: skip it until it can have respawned.
-    laneGrid(860 + camp) = worldTick + tickRate * 60
-    laneGrid(880) = laneGrid(880) + 1
-    detourCamp = 0
-  else
-    goalX = campDx
-    goalY = campDy
-    goalKind = 4
   end if
 end if
 if canShop() and owned(21) > 0 and selfPortalCooldown = 0 then

@@ -3,6 +3,7 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v9 drafts by a fixed preference order (see chooseHero).
 ' v8 adds spell gates (GotA Spell Use Card, current-game ranges): E and R only
 ' on enemy heroes, delayed E/R need two heroes or one at 40% HP, W on footmen
 ' only with no hero in range, R tried first, no casts on buildings.
@@ -52,32 +53,38 @@ sub chooseHero()
   if draftTurnId <> selfId then
     exit sub
   end if
-  bestClass = -1
-  bestScore = -10000
-  for candidate = 0 to 9
-    if heroAvailable(candidate) then
-      role = heroRole(candidate)
-      score = 100
-      for player = 0 to draftPlayerCount() - 1
-        if draftPlayerTeam(player) = selfTeam then
-          picked = draftedClass(draftPlayerId(player))
-          if picked >= 0 then
-            if heroRole(picked) = role then
-              score = score - 100
-            end if
-          end if
-        end if
-      next player
-      if score > bestScore then
-        bestScore = score
-        bestClass = candidate
-      end if
+  ' v9 draft order from v8 hosted results (Vanguard 28 games avg 2,698 XP,
+  ' Druid 6 games avg 3,876): Druid Warden, Death Knight, Arcanist,
+  ' Crossbowman, Warlock, Berserker, Demon Hunter, Lich, Vanguard Knight,
+  ' Ranger last. Take the first one still available.
+  for pick = 0 to 9
+    if pick = 0 then
+      candidate = DruidWarden
+    elseif pick = 1 then
+      candidate = DeathKnight
+    elseif pick = 2 then
+      candidate = Arcanist
+    elseif pick = 3 then
+      candidate = Crossbowman
+    elseif pick = 4 then
+      candidate = Warlock
+    elseif pick = 5 then
+      candidate = Berserker
+    elseif pick = 6 then
+      candidate = DemonHunter
+    elseif pick = 7 then
+      candidate = Lich
+    elseif pick = 8 then
+      candidate = VanguardKnight
+    else
+      candidate = Ranger
     end if
-  next candidate
-  if bestClass >= 0 then
-    accepted = draftHero(bestClass)
-    actionError = lastActionError()
-  end if
+    if heroAvailable(candidate) then
+      accepted = draftHero(candidate)
+      actionError = lastActionError()
+      exit sub
+    end if
+  next pick
 end sub
 
 sub learnAbilities()

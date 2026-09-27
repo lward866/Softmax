@@ -46,5 +46,10 @@ uv run coworld xp-request --help
   Deaths 2–16. Main finding: `retreat=1` in ~35–45% of 30-second samples in 9/10 matches — the hero walks all the
   way back to spawn (~60–100 tiles) at 25% HP and waits for 90% HP, then walks back. E.g. seat 3: 2 deaths but only
   65 basic hits and level 6 after 20 minutes.
+- Upload v3 (`:v3`, tag version=v3-tower-heal): heal at nearest allied tower with potions; buy 3 health potions first.
+  XP Request `xreq_0e4c3c59-79a6-4d86-bd4a-b02bc545daae` (`xp/xp-request-v3-tower-heal.json`), same settings as v2.
+  Result vs v2: **worse**. Avg XP 1,947 vs 2,431; deaths 9.2 vs 7.3; level 6.7 vs 7.6; retreat share 32% vs 36%.
+  Logs show the hero often dying while retreating (hp=0 with retreat=1): lingering near the fight to drink potions
+  gets it caught. Previous best remains v1/v2 behavior.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

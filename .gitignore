@@ -1,0 +1,4 @@
+.venv/
+coworld/
+runs/
+__pycache__/

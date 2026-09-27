@@ -60,27 +60,26 @@ sub chooseHero()
   if draftTurnId <> selfId then
     exit sub
   end if
-  ' v9 draft order from v8 hosted results (Vanguard 28 games avg 2,698 XP,
-  ' Druid 6 games avg 3,876): Druid Warden, Death Knight, Arcanist,
-  ' Crossbowman, Warlock, Berserker, Demon Hunter, Lich, Vanguard Knight,
-  ' Ranger last. Take the first one still available.
+  ' Draft order (v12): Druid Warden, Arcanist, Crossbowman, Warlock,
+  ' Berserker, Demon Hunter, Lich, Death Knight, Vanguard Knight, Ranger.
+  ' Death Knight moved down after averaging ~2,200 XP over 13 games (v9-v11).
   for pick = 0 to 9
     if pick = 0 then
       candidate = DruidWarden
     elseif pick = 1 then
-      candidate = DeathKnight
-    elseif pick = 2 then
       candidate = Arcanist
-    elseif pick = 3 then
+    elseif pick = 2 then
       candidate = Crossbowman
-    elseif pick = 4 then
+    elseif pick = 3 then
       candidate = Warlock
-    elseif pick = 5 then
+    elseif pick = 4 then
       candidate = Berserker
-    elseif pick = 6 then
+    elseif pick = 5 then
       candidate = DemonHunter
-    elseif pick = 7 then
+    elseif pick = 6 then
       candidate = Lich
+    elseif pick = 7 then
+      candidate = DeathKnight
     elseif pick = 8 then
       candidate = VanguardKnight
     else

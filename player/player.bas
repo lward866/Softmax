@@ -3,6 +3,13 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v14 soldier-wave wrapper and early wave following: facing 4+ enemy footmen
+' within 6 tiles with no allied footman there, fall back beside the nearest
+' allied tower and only fight once that tower is shooting and we stand in
+' its reach; 3 or fewer footmen are fought normally. Ranged footmen are
+' taken before melee. Before the lane grid is ready, footmen are bucketed by
+' a left/centre/right split of the base-to-base diagonal so the hero can
+' follow its wave from the start.
 ' v13 adds a WALK note (diagnostics only): where the hero is, where it is
 ' marching and why, every 10 s for the first 3 battle minutes, then every 30 s.
 ' v12 moves Death Knight down the draft and tightens spell timing: a slow
@@ -272,6 +279,7 @@ sub readObject(index)
         safeDistance = distance
         safeX = x
         safeY = y
+        safeShot = objectTarget(index)
       end if
       ' Protected allied towers still serve as portal anchors.
       dx = x - enemyX
@@ -337,6 +345,18 @@ sub readObject(index)
       end if
       if gridReady then
         laneId = laneGrid((y \ 4) * gridW + x \ 4)
+      elseif distance <= 900 then
+        ' Opening fallback within 30 tiles: side of the base-to-base diagonal.
+        laneId = 2
+        if x + y < mapWidth - 19 then
+          laneId = 1
+        elseif x + y > mapWidth + 17 then
+          laneId = 3
+        end if
+      else
+        laneId = 0
+      end if
+      if laneId > 0 then
         laneCreeps(laneId) = laneCreeps(laneId) + 1
         dx = x - enemyX
         dy = y - enemyY
@@ -376,6 +396,9 @@ sub readObject(index)
   end if
   if kind = 2 and distance <= 36 then
     enemyHeroesNear = enemyHeroesNear + 1
+  end if
+  if kind = 3 and distance <= 36 then
+    enemyCreepsNear = enemyCreepsNear + 1
   end if
   if kind = 2 and foes < 5 and objectAlive(index) then
     foeId(foes) = id
@@ -440,6 +463,10 @@ sub readObject(index)
     if hp <= selfAttackDamage and selfAttackCooldown <= tickRate \ 2 then
       score = score + 400
     end if
+    ' Ranged footmen (class 1) before melee, even over a melee last hit.
+    if objectClass(index) = 1 then
+      score = score + 450
+    end if
   elseif kind = 5 then
     score = score + 40
   end if
@@ -497,6 +524,8 @@ sub observe()
   allyCreepsNear = 0
   allyHeroesNear = 0
   enemyHeroesNear = 0
+  enemyCreepsNear = 0
+  safeShot = 0
   friendlyPower = 0
   enemyPower = 0
   allies = 0
@@ -954,13 +983,9 @@ if worldTick >= nextLog then
   ' side lane, B = y-high side lane, M = middle); push grows toward the enemy god.
   print "STATUS t="; worldTick \ tickRate; " class="; selfClass; " lvl="; selfLevel; " hp="; selfHp; "/"; selfMaxHp; " mana="; selfMana; " gold="; selfGold; " deaths="; selfDeaths; " respawn="; selfRespawnTicks \ tickRate; " hits="; selfAttacksLanded; " x="; selfX; " y="; selfY; " retreat="; retreating; " spawn="; inOwnSpawn()
   print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; myLane; " committed="; committedLane; " heroesA="; laneHeroes(1); " heroesM="; laneHeroes(2); " heroesB="; laneHeroes(3); " creepsA="; laneCreeps(1); " creepsM="; laneCreeps(2); " creepsB="; laneCreeps(3); " rotate="; rotateReason$; " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
-  print "LANE t="; worldTick \ tickRate; " lock="; lockId; " lockAge="; worldTick - lockSince; " shareSum="; shareSum; " shareN="; shareN; " coverSum="; coverSum; " coverN="; coverN; " lockAgeSum="; lockAgeSum; " lockN="; lockN; " dryTicks="; dryTicks; " rotations="; rotations; " clockTax="; (worldTick \ tickRate) * 10 \ 3
-  shareSum = 0
-  shareN = 0
-  coverSum = 0
-  coverN = 0
-  lockAgeSum = 0
-  lockN = 0
+  print "LANE t="; worldTick \ tickRate; " dryTicks="; dryTicks; " rotations="; rotations; " waveHold="; waveHold; " waveFallBack="; waveBack; " gridReady="; gridReady
+  waveHold = 0
+  waveBack = 0
   print "ACT t="; worldTick \ tickRate; " fightHero="; actHero; " fightCreep="; actCreep; " fightBuilding="; actBuilding; " fightCamp="; actCamp; " march="; actMarch; " followWave="; actWave; " retreat="; actRetreat; " spawnWait="; actSpawn; " dodge="; actDodge; " towerStep="; actTower; " backOff="; actBack; " dead="; actDead
   actHero = 0
   actCreep = 0
@@ -1222,7 +1247,7 @@ if gridW * gridH <= 900 and (laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or
     buildSignature = signature
     gridCursor = 0
   end if
-  if gridCursor < gridW * gridH and enemyHeroesNear = 0 and bestId = 0 then
+  if gridCursor < gridW * gridH and enemyHeroesNear = 0 and enemyCreepsNear = 0 and bestId = 0 then
     for cell = 1 to 3
       if gridCursor < gridW * gridH then
         laneOfPoint((gridCursor - (gridCursor \ gridW) * gridW) * 4 + 2, (gridCursor \ gridW) * 4 + 2)
@@ -1252,32 +1277,6 @@ dx = myX - homeX
 dy = myY - homeY
 if dx * dx + dy * dy > 400 and gridReady then
   myLane = laneGrid((myY \ 4) * gridW + myX \ 4)
-end if
-if bestId <> 0 then
-  share = 0
-  for ally = 0 to allyCount - 1
-    dx = allyXY(ally * 2) - bestX
-    dy = allyXY(ally * 2 + 1) - bestY
-    if dx * dx + dy * dy <= 36 then
-      share = share + 1
-    end if
-  next ally
-  shareSum = shareSum + share
-  shareN = shareN + 1
-end if
-if hostDistance < 1000000 then
-  coverN = coverN + 1
-  if coverGap < hostDistance then
-    coverSum = coverSum + 1
-  end if
-end if
-if selfTarget <> lockId then
-  lockId = selfTarget
-  lockSince = worldTick
-end if
-if lockId <> 0 then
-  lockAgeSum = lockAgeSum + worldTick - lockSince
-  lockN = lockN + 1
 end if
 inventory()
 spells()
@@ -1369,6 +1368,20 @@ if (towerAggro or hostDistance <= 110) and (towerTanked = 0 or towerCreeps < 2) 
     moveTo(homeX, homeY, 0)
   end if
   end
+end if
+' Soldier-wave wrapper: alone against 4+ enemy footmen, stand beside the
+' nearest allied tower and only fight once it is shooting and we are in its
+' reach. Enemy heroes and 3 or fewer footmen are handled normally.
+if enemyCreepsNear >= 4 and allyCreepsNear = 0 and safeDistance < 1000000 and bestKind <> 2 then
+  if safeShot = 0 or safeDistance > 81 then
+    if safeDistance > 36 then
+      waveBack = waveBack + 1
+      moveTo(safeX, safeY, 0)
+    else
+      waveHold = waveHold + 1
+    end if
+    end
+  end if
 end if
 ' Shopping trip: walk home only when the next gear piece plus potions is
 ' affordable, no enemy hero is near, and there is time left to use it.

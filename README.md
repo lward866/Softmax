@@ -17,7 +17,7 @@ BASIC code, no LLM calls, small test batches, no league submission without the o
 ## Current strategy
 `player/player.bas` (v8) is the bundled Baseline plus: positional play and pressure-based retreat (v5),
 live lane buckets from allied buildings with least-crowded rotation (v7), and spell gates that keep E/R for
-enemy heroes (v8), and a fixed draft order led by the Druid Warden (v9). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
+enemy heroes (v8), a fixed draft order led by the Druid Warden (v9), and tower safety plus gear-first shopping (v11). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
 Scoring is lifetime XP minus 200 per simulated minute, so faster wins score higher.
 
 ## Commands
@@ -102,5 +102,12 @@ uv run coworld xp-request --help
   instruction limit)** — the card's hard-fail condition. Druid 23 games avg 3,749 (v9 3,953).
   Inventory (per 30 s note): Ranger Boots almost always; Arcane Spellbook in ~22% of notes, Knight Armor ~5%.
   Previous best remains v9.
+- Upload v11 (`:v11`, tag version=v11-tower-safety-shopping): v9 + tower safety (incl. protected towers) +
+  gear-first shopping with safe shop trips and gear-reserving buyback.
+  XP Request `xreq_c25cdae0-0c34-4b8c-999f-5bf3d433d221` (`xp/xp-request-v11-tower-shop.json`), 30 episodes.
+  Result vs v9: **best so far**. Avg XP 3,968 ±489 vs 3,579 ±410; median 4,020 vs 3,651; scores above 0 in
+  15/30 vs 10/30 (best 1,889); avg score 526 vs 295; deaths 4.1 vs 5.6; dead time 5.4% vs 8.2%; zero BASIC
+  errors. Both gear pieces bought in 29/30 games (first piece at ~3.7 min median); 2.4 shop trips and 0.8
+  buybacks per game. Druid 25 games avg 4,313 XP / 4.0 deaths; Death Knight 3 games avg 1,898.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

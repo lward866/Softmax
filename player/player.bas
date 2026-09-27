@@ -3,6 +3,11 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v16 pushes lanes further: in a push window (attackable enemy tower in reach,
+' shooting our footmen with 2+ under it, no enemy footmen near us) the tower is
+' the target unless an enemy hero is; the soldier-wave fall-back only runs
+' with our own tower within 15 tiles; stepping out of uncovered tower fire
+' goes to our lane's wave front when it is outside that tower's reach.
 ' v15 adds an OBJ note (diagnostics only): how often an attackable enemy tower
 ' is in reach, covered by our footmen, with the enemy wave cleared, whether we
 ' hit it, missed pushes, and whether an allied hero is at that tower.
@@ -403,6 +408,7 @@ sub readObject(index)
       hostY = y
       hostTarget = target
       hostAlive = objectAlive(index)
+      hostId = id
     end if
   end if
   if kind = 2 and distance <= 36 then
@@ -1306,6 +1312,16 @@ dy = myY - homeY
 if dx * dx + dy * dy > 400 and gridReady then
   myLane = laneGrid((myY \ 4) * gridW + myX \ 4)
 end if
+' Push window: take the tower itself instead of footmen or camps.
+if hostDistance <= 324 and hostAlive and towerTanked and towerCreeps >= 2 and enemyCreepsNear = 0 and bestKind <> 2 then
+  if hostId <> blockedId or worldTick >= blockedUntil then
+    bestId = hostId
+    bestKind = 4
+    bestX = hostX
+    bestY = hostY
+    bestDistance = hostDistance
+  end if
+end if
 ' OBJ note counters (per decision, reset every 30 s).
 if hostDistance <= 324 and hostAlive then
   objSeen = objSeen + 1
@@ -1408,7 +1424,11 @@ end if
 ' while it shoots an allied footman and at least two footmen are under it.
 if (towerAggro or hostDistance <= 110) and (towerTanked = 0 or towerCreeps < 2) then
   actTower = actTower + 1
-  if safeDistance < 1000000 then
+  dx = laneFrontX(committedLane) - hostX
+  dy = laneFrontY(committedLane) - hostY
+  if laneFront(committedLane) < 1000000 and dx * dx + dy * dy > 144 then
+    moveTo(laneFrontX(committedLane), laneFrontY(committedLane), 0)
+  elseif safeDistance < 1000000 then
     moveTo(safeX, safeY, 0)
   else
     moveTo(homeX, homeY, 0)
@@ -1418,7 +1438,7 @@ end if
 ' Soldier-wave wrapper: alone against 4+ enemy footmen, stand beside the
 ' nearest allied tower and only fight once it is shooting and we are in its
 ' reach. Enemy heroes and 3 or fewer footmen are handled normally.
-if enemyCreepsNear >= 4 and allyCreepsNear = 0 and safeDistance < 1000000 and bestKind <> 2 then
+if enemyCreepsNear >= 4 and allyCreepsNear = 0 and safeDistance <= 225 and bestKind <> 2 then
   if safeShot = 0 or safeDistance > 81 then
     if safeDistance > 36 then
       waveBack = waveBack + 1

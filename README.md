@@ -132,5 +132,13 @@ uv run coworld xp-request --help
   vs 3,733 ±252; scores above 0 in 15/30 (50%) vs 25/60 (42%); avg score 471 vs 279; deaths 4.2 vs 4.8; dead
   time 5.2% vs 6.6%; avg XP rank 5.7 vs 6.1; zero BASIC errors. First 3 minutes: walking far 6% (was 12%),
   idle at goal 16% (22%), fighting with soldiers 29% (24%), fighting alone 32% (30%), retreating 17% (11%).
+- Upload v15 (`:v15`, tag version=v15-objective-notes): v14 behavior + OBJ note.
+  XP Request `xreq_ed9454cb-913f-40a1-93dc-2de945d4567d` (`xp/xp-request-v15-obj-notes.json`), 30 episodes.
+  Avg XP 3,892 ±365, scores above 0 15/30, avg score 350, deaths 4.7, zero errors. **v14+v15 (60 games, same
+  behavior): avg XP 3,954 ±257, scores above 0 30/60, avg score 410, deaths 4.5, avg XP rank 5.7.**
+  Objectives (decisions are 0.25 s): an attackable enemy tower is within 18 tiles only ~73 s per match; it is
+  covered by our footmen 51% of that time; the push window (covered, enemy wave cleared) is ~17 s per match
+  (median). In the window the hero hits a structure 62% and misses 35% (~6 s per match). An allied hero is at
+  that tower 17% of the in-reach time. Matches split by hitting time: avg XP 3,540 / 3,929 / 4,208 (low→high).
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

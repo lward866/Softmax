@@ -17,7 +17,7 @@ BASIC code, no LLM calls, small test batches, no league submission without the o
 ## Current strategy
 `player/player.bas` (v8) is the bundled Baseline plus: positional play and pressure-based retreat (v5),
 live lane buckets from allied buildings with least-crowded rotation (v7), and spell gates that keep E/R for
-enemy heroes (v8). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
+enemy heroes (v8), and a fixed draft order led by the Druid Warden (v9). It logs STATUS/POS/LANE/ACT/CAST notes every 30 s to the private player log.
 Scoring is lifetime XP minus 200 per simulated minute, so faster wins score higher.
 
 ## Commands
@@ -88,5 +88,11 @@ uv run coworld xp-request --help
   deaths 5.2, avg XP rank 7.5, zero BASIC errors.** Versus v2 (2,431 ±475, n=10) the gain looks real; versus v5
   (2,701) and v7 (2,749) it is within noise. By hero: Vanguard Knight 28 games avg 2,698; Druid Warden 6 games
   avg 3,876; Death Knight 3 games avg 3,065; Arcanist 1 game 5,143; Ranger 2 games avg 2,550.
+- Upload v9 (`:v9`, tag version=v9-draft-order): v8 + fixed draft order (Druid, Death Knight, Arcanist,
+  Crossbowman, Warlock, Berserker, Demon Hunter, Lich, Vanguard, Ranger).
+  XP Request `xreq_837eb1e4-8d95-4ad6-94db-76296e67fef6` (`xp/xp-request-v9-draft-order.json`), 30 episodes.
+  Result vs v8 (40 games): **clear improvement**. Avg XP 3,579 ±410 vs 2,956 ±298; median 3,651 vs 2,818;
+  scores above 0 in 10/30 (best 1,881) vs 7/40; avg score 295 vs 83; avg XP rank 5.9 vs 7.5; deaths 5.6 vs 5.2;
+  zero BASIC errors. Heroes: Druid 22 games avg 3,953; Death Knight 6 games avg 2,424; Vanguard 2 games avg 2,926.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

@@ -109,5 +109,12 @@ uv run coworld xp-request --help
   15/30 vs 10/30 (best 1,889); avg score 526 vs 295; deaths 4.1 vs 5.6; dead time 5.4% vs 8.2%; zero BASIC
   errors. Both gear pieces bought in 29/30 games (first piece at ~3.7 min median); 2.4 shop trips and 0.8
   buybacks per game. Druid 25 games avg 4,313 XP / 4.0 deaths; Death Knight 3 games avg 1,898.
+- Upload v12 (`:v12`, tag version=v12-draft-spell-timing): v11 + Death Knight moved down the draft + spell timing.
+  XP Request `xreq_c17a9ce8-4ac5-4286-9d67-3df4cc0039be` (`xp/xp-request-v12-draft-spells.json`), 30 episodes.
+  Result vs v11: **no clear difference**. Avg XP 3,934 ±343 vs 3,968 ±489; median 4,088 vs 4,020; scores above 0
+  in 18/30 vs 15/30 but avg score 332 vs 526 (fewer big games); deaths 4.5 vs 4.1; zero BASIC errors. Spells
+  did what was intended: R on heroes 7.3/match vs 3.5, W on heroes 3.7 vs 1.9, E on heroes 1.5 vs 0.3. Arcanist
+  was never drafted (taken first by others); second picks were Vanguard 3, Warlock 2, Berserker, Crossbowman,
+  Death Knight 1 each. Druid 22 games avg 4,138.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

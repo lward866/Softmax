@@ -3,6 +3,8 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v13 adds a WALK note (diagnostics only): where the hero is, where it is
+' marching and why, every 10 s for the first 3 battle minutes, then every 30 s.
 ' v12 moves Death Knight down the draft and tightens spell timing: a slow
 ' E/R may hit one hero that is locked in a fight (attacking us or an allied
 ' hero, or stunned/rooted); keep mana for R when it is nearly ready and a
@@ -999,6 +1001,22 @@ if worldTick >= nextShopLog then
   actShop = 0
 end if
 
+' WALK note: 3 s offset from the other notes; every 10 s in the first three
+' battle minutes, then every 30 s. Fields are team-relative tiles.
+if battleStart = 0 then
+  battleStart = worldTick
+  nextWalkLog = worldTick + tickRate * 3
+end if
+if worldTick >= nextWalkLog then
+  nextWalkLog = worldTick + tickRate * 10
+  if worldTick - battleStart >= tickRate * 180 then
+    nextWalkLog = worldTick + tickRate * 30
+  end if
+  dx = goalX - myX
+  dy = goalY - myY
+  print "WALK bt="; (worldTick - battleStart) \ tickRate; " x="; myX; " y="; myY; " lane="; myLane; " committed="; committedLane; " goalKind="; goalKind; " gx="; goalX; " gy="; goalY; " goalGap2="; dx * dx + dy * dy; " target="; bestKind; " retreat="; retreating; " shop="; shopTrip; " spawn="; inOwnSpawn(); " creepsNear="; allyCreepsNear; " hp="; hpPct
+end if
+
 ' Buy back when affordable while keeping the next gear piece's cost (late
 ' in the match, whenever affordable), including during a long respawn.
 if selfHp <= 0 then
@@ -1474,14 +1492,19 @@ end if
 actMarch = actMarch + 1
 goalX = myX
 goalY = myY
+' goalKind for the WALK note: 1 lane wave front, 2 lane front building,
+' 3 held back by an uncovered tower, 0 nowhere to go.
+goalKind = 0
 if laneFront(committedLane) < 1000000 then
   actWave = actWave + 1
   goalX = laneFrontX(committedLane)
   goalY = laneFrontY(committedLane)
+  goalKind = 1
 else
   if laneAnchorRear(committedLane) >= 0 then
     goalX = frontAnchorX(committedLane)
     goalY = frontAnchorY(committedLane)
+    goalKind = 2
   end if
 end if
 if hostDistance < 1000000 and (towerTanked = 0 or towerCreeps < 2) then
@@ -1490,6 +1513,7 @@ if hostDistance < 1000000 and (towerTanked = 0 or towerCreeps < 2) then
   if dx * dx + dy * dy <= 110 then
     goalX = myX
     goalY = myY
+    goalKind = 3
   end if
 end if
 if canShop() and owned(21) > 0 and selfPortalCooldown = 0 then

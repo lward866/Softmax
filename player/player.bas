@@ -9,6 +9,7 @@
 ' position/activity notes in the private player log.
 
 dim owned(22)
+dim laneAllies(4)
 dim inventorySlot(22)
 dim allyIds(9)
 dim seenMaxHp(9)
@@ -85,6 +86,29 @@ sub learnAbilities()
   next upgrade
 end sub
 
+' Team-relative lanes: own base is the high-x/low-y corner. Lane A hugs the
+' low x/y edges, lane B the high x/y edges, and the middle lane follows the
+' base-to-base diagonal. laneId: 0 base, 1 A, 2 middle, 3 B, 4 jungle.
+sub classifyLane(px, py)
+  laneId = 4
+  bx = px - spawnX
+  by = py - spawnY
+  ex = px - (mapWidth - 1 - spawnX)
+  ey = py - (mapHeight - 1 - spawnY)
+  if bx * bx + by * by <= 400 or ex * ex + ey * ey <= 400 then
+    laneId = 0
+  elseif px <= 22 or py <= 22 then
+    laneId = 1
+  elseif px >= mapWidth - 23 or py >= mapHeight - 23 then
+    laneId = 3
+  else
+    diagonal = px + py - (mapWidth - 1)
+    if diagonal >= -25 and diagonal <= 25 then
+      laneId = 2
+    end if
+  end if
+end sub
+
 sub readObject(index)
   id = objectId(index)
   kind = objectKind(index)
@@ -158,6 +182,10 @@ sub readObject(index)
         forwardY = y
       end if
     elseif kind = 2 then
+      if id <> selfId then
+        classifyLane(x, y)
+        laneAllies(laneId) = laneAllies(laneId) + 1
+      end if
       allyIds(allies) = id
       allies = allies + 1
       class = objectClass(index)
@@ -282,6 +310,9 @@ sub observe()
   forwardDistance = 1000000
   safeDistance = 1000000
   waveScore = 1000000
+  for laneReset = 0 to 4
+    laneAllies(laneReset) = 0
+  next laneReset
   ' Enemy buildings are scanned before allied heroes and creeps, so the cover
   ' gates in readObject use the previous decision's counts.
   coverCreeps = allyCreepsNear
@@ -680,15 +711,19 @@ if worldTick >= nextLog then
   nextLog = worldTick + tickRate * 30
   ' Team-relative position: lane is from the own-base diagonal (A = x-low
   ' side lane, B = y-high side lane, M = middle); push grows toward the enemy god.
-  laneSum = myX + myY
-  lane$ = "M"
-  if laneSum < 85 then
+  classifyLane(myX, myY)
+  lane$ = "base"
+  if laneId = 1 then
     lane$ = "A"
-  elseif laneSum > 145 then
+  elseif laneId = 2 then
+    lane$ = "M"
+  elseif laneId = 3 then
     lane$ = "B"
+  elseif laneId = 4 then
+    lane$ = "jungle"
   end if
   print "STATUS t="; worldTick \ tickRate; " class="; selfClass; " lvl="; selfLevel; " hp="; selfHp; "/"; selfMaxHp; " mana="; selfMana; " gold="; selfGold; " deaths="; selfDeaths; " respawn="; selfRespawnTicks \ tickRate; " hits="; selfAttacksLanded; " x="; selfX; " y="; selfY; " retreat="; retreating; " spawn="; inOwnSpawn()
-  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; lane$; " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
+  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; lane$; " goalLane="; chosenLane; " alliesA="; laneAllies(1); " alliesM="; laneAllies(2); " alliesB="; laneAllies(3); " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
   print "ACT t="; worldTick \ tickRate; " fightHero="; actHero; " fightCreep="; actCreep; " fightBuilding="; actBuilding; " fightCamp="; actCamp; " march="; actMarch; " followWave="; actWave; " retreat="; actRetreat; " spawnWait="; actSpawn; " dodge="; actDodge; " towerStep="; actTower; " backOff="; actBack; " dead="; actDead
   actHero = 0
   actCreep = 0
@@ -1000,17 +1035,41 @@ if bestId <> 0 then
   end
 end if
 
-' Farm separate lanes early, then converge on the enemy god to finish.
+' Pick the lane with the fewest allied heroes, so creep XP is split fewer
+' ways; re-check every 45 seconds. The first pick prefers side lanes on ties.
+if chosenLane = 0 or worldTick >= laneUntil then
+  bestLane = chosenLane
+  if bestLane = 0 then
+    bestLane = 1
+  end if
+  ' After the first pick, cross the map only for a lane with two fewer allies.
+  margin = 0
+  if chosenLane <> 0 then
+    margin = 1
+  end if
+  for candidateLane = 1 to 3
+    if laneAllies(candidateLane) + margin < laneAllies(bestLane) then
+      bestLane = candidateLane
+    elseif chosenLane = 0 and laneAllies(candidateLane) = laneAllies(bestLane) and bestLane = 2 then
+      bestLane = candidateLane
+    end if
+  next candidateLane
+  if bestLane <> chosenLane then
+    chosenLane = bestLane
+    crossedMiddle = 0
+  end if
+  laneUntil = worldTick + tickRate * 45
+end if
+' Walk to the chosen lane's bend (or the map middle), then push that lane
+' toward the enemy god.
 middleX = mapWidth \ 2
 middleY = mapHeight \ 2
-if selfLevel < 6 then
-  if role = 0 or role = 2 then
-    middleX = mapWidth \ 10
-    middleY = mapHeight \ 10
-  elseif role = 1 or role = 3 then
-    middleX = mapWidth * 9 \ 10
-    middleY = mapHeight * 9 \ 10
-  end if
+if chosenLane = 1 then
+  middleX = mapWidth \ 10
+  middleY = mapHeight \ 10
+elseif chosenLane = 3 then
+  middleX = mapWidth * 9 \ 10
+  middleY = mapHeight * 9 \ 10
 end if
 dx = myX - middleX
 dy = myY - middleY
@@ -1023,12 +1082,15 @@ if crossedMiddle then
   goalX = enemyX
   goalY = enemyY
 end if
-' Positional play: march with the nearest allied wave front when one is in view.
+' Positional play: march with the allied wave front when it is in our lane.
 actMarch = actMarch + 1
 if waveScore < 1000000 then
-  actWave = actWave + 1
-  goalX = waveX
-  goalY = waveY
+  classifyLane(waveX, waveY)
+  if laneId = chosenLane then
+    actWave = actWave + 1
+    goalX = waveX
+    goalY = waveY
+  end if
 end if
 if canShop() and owned(21) > 0 and selfPortalCooldown = 0 then
   dx = myX - forwardX

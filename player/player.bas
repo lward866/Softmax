@@ -3,9 +3,12 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v5 adds positional play from "Give this to Claude Code" (Policy items only,
+' adapted to the current game): wave following, wave-cover tower rules,
+' pressure-based retreat to the nearest allied tower, per-hero HP gates, and
+' position/activity notes in the private player log.
 
 dim owned(22)
-dim preference(9)
 dim inventorySlot(22)
 dim allyIds(9)
 dim seenMaxHp(9)
@@ -18,25 +21,32 @@ sub chooseHero()
   if draftTurnId <> selfId then
     exit sub
   end if
-  ' Offense first: take the first available damage hero in this preference
-  ' order and leave the tank (Vanguard Knight) for last.
-  preference(0) = Crossbowman
-  preference(1) = DeathKnight
-  preference(2) = Berserker
-  preference(3) = DemonHunter
-  preference(4) = Warlock
-  preference(5) = Lich
-  preference(6) = Arcanist
-  preference(7) = DruidWarden
-  preference(8) = Ranger
-  preference(9) = VanguardKnight
-  for pick = 0 to 9
-    if heroAvailable(preference(pick)) then
-      accepted = draftHero(preference(pick))
-      actionError = lastActionError()
-      exit sub
+  bestClass = -1
+  bestScore = -10000
+  for candidate = 0 to 9
+    if heroAvailable(candidate) then
+      role = heroRole(candidate)
+      score = 100
+      for player = 0 to draftPlayerCount() - 1
+        if draftPlayerTeam(player) = selfTeam then
+          picked = draftedClass(draftPlayerId(player))
+          if picked >= 0 then
+            if heroRole(picked) = role then
+              score = score - 100
+            end if
+          end if
+        end if
+      next player
+      if score > bestScore then
+        bestScore = score
+        bestClass = candidate
+      end if
     end if
-  next pick
+  next candidate
+  if bestClass >= 0 then
+    accepted = draftHero(bestClass)
+    actionError = lastActionError()
+  end if
 end sub
 
 sub learnAbilities()
@@ -133,6 +143,11 @@ sub readObject(index)
       enemyX = mapWidth - 1 - x
       enemyY = mapHeight - 1 - y
     elseif kind = 4 then
+      if distance < safeDistance then
+        safeDistance = distance
+        safeX = x
+        safeY = y
+      end if
       ' Protected allied towers still serve as portal anchors.
       dx = x - enemyX
       dy = y - enemyY
@@ -152,19 +167,41 @@ sub readObject(index)
       if distance <= 100 then
         friendlyPower = friendlyPower + objectLevel(index) + 2
       end if
+      if distance <= 36 then
+        allyHeroesNear = allyHeroesNear + 1
+      end if
       missing = seenMaxHp(class) - hp
       if distance <= healRange * healRange and missing > healMissing then
         healMissing = missing
         healId = id
       end if
-    elseif kind = 3 and distance <= 64 then
-      tanks = tanks + 1
+    elseif kind = 3 then
+      if distance <= 64 then
+        tanks = tanks + 1
+      end if
+      if distance <= 36 then
+        allyCreepsNear = allyCreepsNear + 1
+      end if
+      ' The wave front is the allied creep within 20 tiles closest to the enemy god.
+      if distance <= 400 then
+        dx = x - enemyX
+        dy = y - enemyY
+        front = dx * dx + dy * dy
+        if front < waveScore then
+          waveScore = front
+          waveX = x
+          waveY = y
+        end if
+      end if
     end if
     exit sub
   end if
   if kind = 1 then
     enemyX = x
     enemyY = y
+  end if
+  if kind = 2 and distance <= 36 then
+    enemyHeroesNear = enemyHeroesNear + 1
   end if
   if kind = 2 and distance <= 144 then
     enemyPower = enemyPower + objectLevel(index) + 2
@@ -183,6 +220,20 @@ sub readObject(index)
   target = objectTarget(index)
   if kind = 4 and target = selfId then
     towerAggro = 1
+  end if
+  ' Engage gate: below the hero's HP gate, only take heroes that are finishable.
+  if kind = 2 and hpPct < engagePct and hp >= selfAttackDamage * 4 then
+    exit sub
+  end if
+  ' Let allied creeps tank buildings first; take the god only with allied presence.
+  if kind = 4 or kind = 5 then
+    if coverCreeps = 0 and target <> selfId then
+      exit sub
+    end if
+  elseif kind = 1 then
+    if coverCreeps = 0 and coverHeroes = 0 then
+      exit sub
+    end if
   end if
   score = 1000 - distance * 2
   if kind = 1 then
@@ -229,6 +280,15 @@ sub observe()
   bestDistance = 1000000
   threatDistance = 1000000
   forwardDistance = 1000000
+  safeDistance = 1000000
+  waveScore = 1000000
+  ' Enemy buildings are scanned before allied heroes and creeps, so the cover
+  ' gates in readObject use the previous decision's counts.
+  coverCreeps = allyCreepsNear
+  coverHeroes = allyHeroesNear
+  allyCreepsNear = 0
+  allyHeroesNear = 0
+  enemyHeroesNear = 0
   friendlyPower = 0
   enemyPower = 0
   allies = 0
@@ -238,6 +298,10 @@ sub observe()
   healMissing = selfMaxHp - selfHp
   seenMaxHp(selfClass) = selfMaxHp
   objects = objectCount()
+  hpPct = 0
+  if selfMaxHp > 0 then
+    hpPct = selfHp * 100 \ selfMaxHp
+  end if
   ' Buildings and heroes precede creeps. Rotate the large creep tail so a
   ' crowded battlefield cannot exhaust the per-decision VM budget.
   for scan = 0 to 95
@@ -341,10 +405,12 @@ sub inventory()
       inventorySlot(id) = itemSlot
       if itemCooldown(itemSlot) = 0 and inOwnSpawn() = 0 then
         consume = 0
-        if id = 1 and selfMaxHp - selfHp >= 60 then
+        if id = 1 and selfMaxHp - selfHp >= 120 and selfHp * 10 <= selfMaxHp * 6 then
           consume = threatDistance > 100 and worldTick - hurtTick > tickRate
-        elseif id = 2 and selfHp * 2 < selfMaxHp then
+        elseif id = 2 and selfMaxHp - selfHp >= 90 and selfHp * 100 <= selfMaxHp * 45 then
           consume = 1
+        elseif id = 2 and selfMaxHp - selfHp >= 60 and selfHp * 10 <= selfMaxHp * 6 then
+          consume = enemyHeroesNear > 0 or towerAggro
         elseif id = 22 and selfMaxMana - selfMana >= 45 then
           consume = threatDistance > 100 and worldTick - hurtTick > tickRate
         elseif id = 3 and selfMana * 3 < selfMaxMana then
@@ -612,11 +678,38 @@ end if
 ' Diagnostics only: a status line every 30 simulated seconds for the private player log.
 if worldTick >= nextLog then
   nextLog = worldTick + tickRate * 30
+  ' Team-relative position: lane is from the own-base diagonal (A = x-low
+  ' side lane, B = y-high side lane, M = middle); push grows toward the enemy god.
+  laneSum = myX + myY
+  lane$ = "M"
+  if laneSum < 85 then
+    lane$ = "A"
+  elseif laneSum > 145 then
+    lane$ = "B"
+  end if
   print "STATUS t="; worldTick \ tickRate; " class="; selfClass; " lvl="; selfLevel; " hp="; selfHp; "/"; selfMaxHp; " mana="; selfMana; " gold="; selfGold; " deaths="; selfDeaths; " respawn="; selfRespawnTicks \ tickRate; " hits="; selfAttacksLanded; " x="; selfX; " y="; selfY; " retreat="; retreating; " spawn="; inOwnSpawn()
+  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; lane$; " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
+  print "ACT t="; worldTick \ tickRate; " fightHero="; actHero; " fightCreep="; actCreep; " fightBuilding="; actBuilding; " fightCamp="; actCamp; " march="; actMarch; " followWave="; actWave; " retreat="; actRetreat; " spawnWait="; actSpawn; " dodge="; actDodge; " towerStep="; actTower; " backOff="; actBack; " dead="; actDead
+  actHero = 0
+  actCreep = 0
+  actBuilding = 0
+  actCamp = 0
+  actMarch = 0
+  actWave = 0
+  actRetreat = 0
+  actSpawn = 0
+  actDodge = 0
+  actTower = 0
+  actBack = 0
+  actDead = 0
 end if
 
 ' Buy back immediately whenever affordable, including during a long respawn.
 if selfHp <= 0 then
+  if worldTick >= nextDeadTick then
+    nextDeadTick = worldTick + 6
+    actDead = actDead + 1
+  end if
   price = buybackPrice()
   if price > 0 and selfGold >= price then
     accepted = buyback()
@@ -665,6 +758,26 @@ if initialized = 0 then
   castRange(3) = 2
   castDelay(2) = 24
   castDelay(3) = 24
+  ' Policy HP gates (percent): retreat with an enemy hero near, retreat under
+  ' pressure, re-enter after recovering, and minimum HP to pick hero fights.
+  retreatPct = 35
+  pressurePct = 50
+  reenterPct = 60
+  engagePct = 55
+  if selfClass = VanguardKnight or selfClass = DeathKnight then
+    reenterPct = 65
+  end if
+  if selfClass = VanguardKnight or selfClass = DemonHunter or selfClass = DeathKnight or selfClass = Berserker then
+    engagePct = 60
+  end if
+  if selfClass = DeathKnight or selfClass = Warlock then
+    retreatPct = 30
+    pressurePct = 45
+  elseif selfClass = Crossbowman then
+    retreatPct = 38
+  elseif selfClass = DemonHunter then
+    retreatPct = 40
+  end if
   healRange = 4
   for spellSlot = 0 to 3
     castGround(spellSlot) = spellSlot >= 2
@@ -748,14 +861,31 @@ inventory()
 spells()
 dodgeWarnings()
 
-if selfHp * 4 < selfMaxHp or (bestKind = 6 and selfHp * 10 < selfMaxHp * 4) then
+retreatWhy = 0
+if hpPct <= retreatPct and enemyHeroesNear > 0 then
+  retreatWhy = 1
+elseif hpPct < pressurePct and enemyHeroesNear >= 2 then
+  retreatWhy = 2
+elseif hpPct < pressurePct and towerAggro and allyCreepsNear = 0 then
+  retreatWhy = 3
+elseif hpPct <= 20 then
+  retreatWhy = 4
+elseif bestKind = 6 and hpPct < 40 then
+  retreatWhy = 5
+end if
+if retreatWhy > 0 then
   retreating = 1
+  retreatReason = retreatWhy
+end if
+if retreating and hpPct >= reenterPct and selfMana * 8 >= selfMaxMana then
+  retreating = 0
 end if
 if selfMana * 8 < selfMaxMana and bestId = 0 then
   retreating = 1
 end if
 if inOwnSpawn() then
   if selfHp * 10 < selfMaxHp * 9 or selfMana * 10 < selfMaxMana * 9 then
+    actSpawn = actSpawn + 1
     moveTo(spawnX, spawnY, 0)
     end
   end if
@@ -763,10 +893,34 @@ if inOwnSpawn() then
 end if
 
 if dodge and selfRootTicks = 0 then
+  actDodge = actDodge + 1
   moveTo(dodgeX, dodgeY, 0)
   end
 end if
 if retreating then
+  actRetreat = actRetreat + 1
+  ' Above 20% HP with a health potion, recover beside the nearest allied tower
+  ' instead of crossing the map; spawn remains the fallback.
+  if hpPct > 20 and safeDistance < 1000000 and (owned(1) > 0 or owned(2) > 0) then
+    if safeDistance > 9 then
+      moveTo(safeX, safeY, 0)
+      end
+    end if
+    for potion = 1 to 2
+      if owned(potion) > 0 then
+        if itemCooldown(inventorySlot(potion)) = 0 and selfHp < selfMaxHp then
+          accepted = useItem(inventorySlot(potion))
+          actionError = lastActionError()
+          if accepted then
+            end
+          end if
+        end if
+      end if
+    next potion
+    if owned(1) + owned(2) > 0 then
+      end
+    end if
+  end if
   ' A safe scroll saves the long return trip; damage and control can punish it.
   if owned(21) > 0 and selfPortalCooldown = 0 and selfRootTicks = 0 then
     dx = myX - homeX
@@ -783,18 +937,33 @@ if retreating then
   end
 end if
 
-if towerAggro and selfHp * 3 < selfMaxHp * 2 and tanks = 0 then
-  moveTo(homeX, homeY, 0)
+if towerAggro and allyCreepsNear = 0 then
+  actTower = actTower + 1
+  if safeDistance < 1000000 then
+    moveTo(safeX, safeY, 0)
+  else
+    moveTo(homeX, homeY, 0)
+  end if
   end
 end if
 if enemyPower > friendlyPower + 6 and threatDistance < 64 then
   if selfHp * 4 < selfMaxHp * 3 then
+    actBack = actBack + 1
     moveTo(homeX, homeY, 0)
     end
   end if
 end if
 
 if bestId <> 0 then
+  if bestKind = 2 then
+    actHero = actHero + 1
+  elseif bestKind = 3 then
+    actCreep = actCreep + 1
+  elseif bestKind = 6 then
+    actCamp = actCamp + 1
+  else
+    actBuilding = actBuilding + 1
+  end if
   ' Finish a windup before kiting; never cancel every swing with movement.
   if bestKind = 2 and aimedAtUs > 0 and attackRange >= 3 then
     if bestDistance < 4 and selfAttackCooldown > tickRate \ 2 then
@@ -853,6 +1022,13 @@ goalY = middleY
 if crossedMiddle then
   goalX = enemyX
   goalY = enemyY
+end if
+' Positional play: march with the nearest allied wave front when one is in view.
+actMarch = actMarch + 1
+if waveScore < 1000000 then
+  actWave = actWave + 1
+  goalX = waveX
+  goalY = waveY
 end if
 if canShop() and owned(21) > 0 and selfPortalCooldown = 0 then
   dx = myX - forwardX

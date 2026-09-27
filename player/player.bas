@@ -3,13 +3,32 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
+' v7 replaces lane choice with live lane buckets built from allied towers and
+' barracks (GotA v6 frame spec): stay while the committed lane has allied
+' footmen; after 48 dry ticks walk once to a less crowded lane that has them.
 ' v5 adds positional play from "Give this to Claude Code" (Policy items only,
 ' adapted to the current game): wave following, wave-cover tower rules,
 ' pressure-based retreat to the nearest allied tower, per-hero HP gates, and
 ' position/activity notes in the private player log.
 
 dim owned(22)
-dim laneAllies(4)
+dim laneGrid(899)
+dim anchorX(11)
+dim anchorY(11)
+dim anchorLane(11)
+dim laneAnchorFront(3)
+dim laneAnchorRear(3)
+dim frontAnchorX(3)
+dim frontAnchorY(3)
+dim rearAnchorX(3)
+dim rearAnchorY(3)
+dim laneHeroes(3)
+dim laneCreeps(3)
+dim laneFront(3)
+dim laneFrontX(3)
+dim laneFrontY(3)
+dim allyX(9)
+dim allyY(9)
 dim inventorySlot(22)
 dim allyIds(9)
 dim seenMaxHp(9)
@@ -86,27 +105,76 @@ sub learnAbilities()
   next upgrade
 end sub
 
-' Team-relative lanes: own base is the high-x/low-y corner. Lane A hugs the
-' low x/y edges, lane B the high x/y edges, and the middle lane follows the
-' base-to-base diagonal. laneId: 0 base, 1 A, 2 middle, 3 B, 4 jungle.
-sub classifyLane(px, py)
-  laneId = 4
-  bx = px - spawnX
-  by = py - spawnY
-  ex = px - (mapWidth - 1 - spawnX)
-  ey = py - (mapHeight - 1 - spawnY)
-  if bx * bx + by * by <= 400 or ex * ex + ey * ey <= 400 then
-    laneId = 0
-  elseif px <= 22 or py <= 22 then
-    laneId = 1
-  elseif px >= mapWidth - 23 or py >= mapHeight - 23 then
-    laneId = 3
-  else
-    diagonal = px + py - (mapWidth - 1)
-    if diagonal >= -25 and diagonal <= 25 then
-      laneId = 2
-    end if
+' Lane ids: 1 A (own-half edge left of our god), 2 middle, 3 B (own-half edge
+' above our god), 0 unknown. An allied lane building is labeled by its bearing
+' from our god; its point mirror covers the enemy half with A and B swapped.
+sub addAnchor(ax, ay)
+  bearingX = homeX - ax
+  bearingY = ay - homeY
+  if bearingX * bearingX + bearingY * bearingY <= 64 then
+    exit sub
   end if
+  label = 2
+  if bearingY * 5 < bearingX * 2 then
+    label = 1
+  elseif bearingX * 5 < bearingY * 2 then
+    label = 3
+  end if
+  ' Keep only each lane's most forward and rearmost allied building.
+  ax2 = ax - enemyX
+  ay2 = ay - enemyY
+  forward = ax2 * ax2 + ay2 * ay2
+  if forward < laneAnchorFront(label) then
+    laneAnchorFront(label) = forward
+    frontAnchorX(label) = ax
+    frontAnchorY(label) = ay
+  end if
+  if forward > laneAnchorRear(label) then
+    laneAnchorRear(label) = forward
+    rearAnchorX(label) = ax
+    rearAnchorY(label) = ay
+  end if
+end sub
+
+' Turn the per-lane front/rear buildings and their point mirrors into anchors.
+sub buildAnchors()
+  anchorsBuilt = 1
+  anchorCount = 0
+  for label = 1 to 3
+    if laneAnchorRear(label) >= 0 then
+      anchorX(anchorCount) = frontAnchorX(label)
+      anchorY(anchorCount) = frontAnchorY(label)
+      anchorLane(anchorCount) = label
+      anchorX(anchorCount + 1) = rearAnchorX(label)
+      anchorY(anchorCount + 1) = rearAnchorY(label)
+      anchorLane(anchorCount + 1) = label
+      anchorX(anchorCount + 2) = mapWidth - 1 - frontAnchorX(label)
+      anchorY(anchorCount + 2) = mapHeight - 1 - frontAnchorY(label)
+      anchorLane(anchorCount + 2) = 4 - label
+      anchorX(anchorCount + 3) = mapWidth - 1 - rearAnchorX(label)
+      anchorY(anchorCount + 3) = mapHeight - 1 - rearAnchorY(label)
+      anchorLane(anchorCount + 3) = 4 - label
+      anchorCount = anchorCount + 4
+    end if
+  next label
+end sub
+
+' Bucket a point into the lane of its nearest anchor.
+sub laneOfPoint(px, py)
+  if anchorsBuilt = 0 then
+    buildAnchors()
+  end if
+  laneId = 0
+  nearest = 1000000
+  for anchor = 0 to anchorCount - 1
+    ax = anchorX(anchor) - px
+    ay = anchorY(anchor) - py
+    gap = ax * ax + ay * ay
+    if gap < nearest then
+      nearest = gap
+      laneId = anchorLane(anchor)
+    end if
+  next anchor
 end sub
 
 sub readObject(index)
@@ -166,7 +234,10 @@ sub readObject(index)
       homeY = y
       enemyX = mapWidth - 1 - x
       enemyY = mapHeight - 1 - y
+    elseif kind = 5 then
+      addAnchor(x, y)
     elseif kind = 4 then
+      addAnchor(x, y)
       if distance < safeDistance then
         safeDistance = distance
         safeX = x
@@ -182,10 +253,6 @@ sub readObject(index)
         forwardY = y
       end if
     elseif kind = 2 then
-      if id <> selfId then
-        classifyLane(x, y)
-        laneAllies(laneId) = laneAllies(laneId) + 1
-      end if
       allyIds(allies) = id
       allies = allies + 1
       class = objectClass(index)
@@ -198,6 +265,21 @@ sub readObject(index)
       if distance <= 36 then
         allyHeroesNear = allyHeroesNear + 1
       end if
+      if id <> selfId and allyCount < 10 then
+        allyX(allyCount) = x
+        allyY(allyCount) = y
+        allyCount = allyCount + 1
+        dx = x - homeX
+        dy = y - homeY
+        if dx * dx + dy * dy > 400 then
+          if gridReady then
+            laneId = laneGrid((y \ 4) * gridW + x \ 4)
+          else
+            laneOfPoint(x, y)
+          end if
+          laneHeroes(laneId) = laneHeroes(laneId) + 1
+        end if
+      end if
       missing = seenMaxHp(class) - hp
       if distance <= healRange * healRange and missing > healMissing then
         healMissing = missing
@@ -209,6 +291,24 @@ sub readObject(index)
       end if
       if distance <= 36 then
         allyCreepsNear = allyCreepsNear + 1
+      end if
+      if hostDistance < 1000000 and distance <= 400 then
+        dx = x - hostX
+        dy = y - hostY
+        if dx * dx + dy * dy < coverGap then
+          coverGap = dx * dx + dy * dy
+        end if
+      end if
+      if gridReady then
+        laneId = laneGrid((y \ 4) * gridW + x \ 4)
+        laneCreeps(laneId) = laneCreeps(laneId) + 1
+        dx = x - enemyX
+        dy = y - enemyY
+        if dx * dx + dy * dy < laneFront(laneId) then
+          laneFront(laneId) = dx * dx + dy * dy
+          laneFrontX(laneId) = x
+          laneFrontY(laneId) = y
+        end if
       end if
       ' The wave front is the allied creep within 20 tiles closest to the enemy god.
       if distance <= 400 then
@@ -227,6 +327,11 @@ sub readObject(index)
   if kind = 1 then
     enemyX = x
     enemyY = y
+  end if
+  if kind = 4 and objectAlive(index) and distance < hostDistance then
+    hostDistance = distance
+    hostX = x
+    hostY = y
   end if
   if kind = 2 and distance <= 36 then
     enemyHeroesNear = enemyHeroesNear + 1
@@ -310,8 +415,18 @@ sub observe()
   forwardDistance = 1000000
   safeDistance = 1000000
   waveScore = 1000000
-  for laneReset = 0 to 4
-    laneAllies(laneReset) = 0
+  anchorCount = 0
+  anchorsBuilt = 0
+  allyCount = 0
+  bucketed = 0
+  hostDistance = 1000000
+  coverGap = 1000000
+  for laneReset = 0 to 3
+    laneHeroes(laneReset) = 0
+    laneCreeps(laneReset) = 0
+    laneFront(laneReset) = 1000000
+    laneAnchorFront(laneReset) = 1000000
+    laneAnchorRear(laneReset) = -1
   next laneReset
   ' Enemy buildings are scanned before allied heroes and creeps, so the cover
   ' gates in readObject use the previous decision's counts.
@@ -711,19 +826,15 @@ if worldTick >= nextLog then
   nextLog = worldTick + tickRate * 30
   ' Team-relative position: lane is from the own-base diagonal (A = x-low
   ' side lane, B = y-high side lane, M = middle); push grows toward the enemy god.
-  classifyLane(myX, myY)
-  lane$ = "base"
-  if laneId = 1 then
-    lane$ = "A"
-  elseif laneId = 2 then
-    lane$ = "M"
-  elseif laneId = 3 then
-    lane$ = "B"
-  elseif laneId = 4 then
-    lane$ = "jungle"
-  end if
   print "STATUS t="; worldTick \ tickRate; " class="; selfClass; " lvl="; selfLevel; " hp="; selfHp; "/"; selfMaxHp; " mana="; selfMana; " gold="; selfGold; " deaths="; selfDeaths; " respawn="; selfRespawnTicks \ tickRate; " hits="; selfAttacksLanded; " x="; selfX; " y="; selfY; " retreat="; retreating; " spawn="; inOwnSpawn()
-  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; lane$; " goalLane="; chosenLane; " alliesA="; laneAllies(1); " alliesM="; laneAllies(2); " alliesB="; laneAllies(3); " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
+  print "POS t="; worldTick \ tickRate; " tx="; myX; " ty="; myY; " lane="; myLane; " committed="; committedLane; " heroesA="; laneHeroes(1); " heroesM="; laneHeroes(2); " heroesB="; laneHeroes(3); " creepsA="; laneCreeps(1); " creepsM="; laneCreeps(2); " creepsB="; laneCreeps(3); " rotate="; rotateReason$; " push="; myY - myX; " allyCreeps="; allyCreepsNear; " allyHeroes="; allyHeroesNear; " enemyHeroes="; enemyHeroesNear; " towerAggro="; towerAggro; " wave="; waveScore < 1000000; " why="; retreatReason
+  print "LANE t="; worldTick \ tickRate; " lock="; lockId; " lockAge="; worldTick - lockSince; " shareSum="; shareSum; " shareN="; shareN; " coverSum="; coverSum; " coverN="; coverN; " lockAgeSum="; lockAgeSum; " lockN="; lockN; " dryTicks="; dryTicks; " rotations="; rotations; " clockTax="; (worldTick \ tickRate) * 10 \ 3
+  shareSum = 0
+  shareN = 0
+  coverSum = 0
+  coverN = 0
+  lockAgeSum = 0
+  lockN = 0
   print "ACT t="; worldTick \ tickRate; " fightHero="; actHero; " fightCreep="; actCreep; " fightBuilding="; actBuilding; " fightCamp="; actCamp; " march="; actMarch; " followWave="; actWave; " retreat="; actRetreat; " spawnWait="; actSpawn; " dodge="; actDodge; " towerStep="; actTower; " backOff="; actBack; " dead="; actDead
   actHero = 0
   actCreep = 0
@@ -892,6 +1003,69 @@ end if
 
 learnAbilities()
 observe()
+' The lane grid caches nearest-anchor buckets in 4-tile cells so every
+' footman can be bucketed cheaply. It is rebuilt 3 cells per idle decision (no
+' target, no nearby enemy hero) from the live anchors whenever an allied lane
+' building falls, keeping busy decisions under the BASIC instruction limit.
+gridW = (mapWidth + 3) \ 4
+gridH = (mapHeight + 3) \ 4
+if gridW * gridH <= 900 and (laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or laneAnchorRear(3) >= 0) then
+  signature = 0
+  for label = 1 to 3
+    if laneAnchorRear(label) >= 0 then
+      signature = signature + (frontAnchorX(label) + frontAnchorY(label) * 3 + rearAnchorX(label) * 7 + rearAnchorY(label) * 11) * label
+    end if
+  next label
+  if signature <> buildSignature then
+    buildSignature = signature
+    gridCursor = 0
+  end if
+  if gridCursor < gridW * gridH and enemyHeroesNear = 0 and bestId = 0 then
+    for cell = 1 to 3
+      if gridCursor < gridW * gridH then
+        laneOfPoint((gridCursor - (gridCursor \ gridW) * gridW) * 4 + 2, (gridCursor \ gridW) * 4 + 2)
+        laneGrid(gridCursor) = laneId
+        gridCursor = gridCursor + 1
+      end if
+    next cell
+    if gridCursor >= gridW * gridH then
+      gridReady = 1
+    end if
+  end if
+end if
+' Frame-spec metrics: own lane bucket, farm-target sharing, cover, lock age.
+myLane = 0
+dx = myX - homeX
+dy = myY - homeY
+if dx * dx + dy * dy > 400 and gridReady then
+  myLane = laneGrid((myY \ 4) * gridW + myX \ 4)
+end if
+if bestId <> 0 then
+  share = 0
+  for ally = 0 to allyCount - 1
+    dx = allyX(ally) - bestX
+    dy = allyY(ally) - bestY
+    if dx * dx + dy * dy <= 36 then
+      share = share + 1
+    end if
+  next ally
+  shareSum = shareSum + share
+  shareN = shareN + 1
+end if
+if hostDistance < 1000000 then
+  coverN = coverN + 1
+  if coverGap < hostDistance then
+    coverSum = coverSum + 1
+  end if
+end if
+if selfTarget <> lockId then
+  lockId = selfTarget
+  lockSince = worldTick
+end if
+if lockId <> 0 then
+  lockAgeSum = lockAgeSum + worldTick - lockSince
+  lockN = lockN + 1
+end if
 inventory()
 spells()
 dodgeWarnings()
@@ -1035,61 +1209,65 @@ if bestId <> 0 then
   end
 end if
 
-' Pick the lane with the fewest allied heroes, so creep XP is split fewer
-' ways; re-check every 45 seconds. The first pick prefers side lanes on ties.
-if chosenLane = 0 or worldTick >= laneUntil then
-  bestLane = chosenLane
-  if bestLane = 0 then
-    bestLane = 1
+' Ladder step 8, reached only with nothing to dodge, recover, fight or hit.
+' First commitment follows the draft role; afterwards stay while the lane has
+' allied footmen, and rotate only after 48 dry ticks to a lane with fewer
+' allied heroes that still has footmen. Without anchors keep the last lane.
+if committedLane = 0 then
+  committedLane = 2
+  if role = 0 or role = 2 then
+    committedLane = 1
+  elseif role = 1 or role = 3 then
+    committedLane = 3
   end if
-  ' After the first pick, cross the map only for a lane with two fewer allies.
-  margin = 0
-  if chosenLane <> 0 then
-    margin = 1
-  end if
-  for candidateLane = 1 to 3
-    if laneAllies(candidateLane) + margin < laneAllies(bestLane) then
-      bestLane = candidateLane
-    elseif chosenLane = 0 and laneAllies(candidateLane) = laneAllies(bestLane) and bestLane = 2 then
-      bestLane = candidateLane
+  rotateReason$ = "none"
+end if
+if laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or laneAnchorRear(3) >= 0 then
+  if laneCreeps(committedLane) > 0 then
+    dryTicks = 0
+    rotateReason$ = "stay"
+  else
+    dryTicks = dryTicks + 6
+    rotateReason$ = "empty_wave"
+    if dryTicks >= 48 then
+      bestLane = 0
+      for candidateLane = 1 to 3
+        if candidateLane <> committedLane and laneCreeps(candidateLane) > 0 then
+          if laneHeroes(candidateLane) < laneHeroes(committedLane) then
+            if bestLane = 0 then
+              bestLane = candidateLane
+            elseif laneHeroes(candidateLane) < laneHeroes(bestLane) then
+              bestLane = candidateLane
+            end if
+          end if
+        end if
+      next candidateLane
+      if bestLane <> 0 then
+        committedLane = bestLane
+        dryTicks = 0
+        rotations = rotations + 1
+        rotateReason$ = "less_crowded"
+        ' One walk next to the new lane's footmen; later decisions attack.
+        actMarch = actMarch + 1
+        moveTo(laneFrontX(bestLane), laneFrontY(bestLane), 0)
+        end
+      end if
     end if
-  next candidateLane
-  if bestLane <> chosenLane then
-    chosenLane = bestLane
-    crossedMiddle = 0
   end if
-  laneUntil = worldTick + tickRate * 45
 end if
-' Walk to the chosen lane's bend (or the map middle), then push that lane
-' toward the enemy god.
-middleX = mapWidth \ 2
-middleY = mapHeight \ 2
-if chosenLane = 1 then
-  middleX = mapWidth \ 10
-  middleY = mapHeight \ 10
-elseif chosenLane = 3 then
-  middleX = mapWidth * 9 \ 10
-  middleY = mapHeight * 9 \ 10
-end if
-dx = myX - middleX
-dy = myY - middleY
-if dx * dx + dy * dy <= 36 then
-  crossedMiddle = 1
-end if
-goalX = middleX
-goalY = middleY
-if crossedMiddle then
-  goalX = enemyX
-  goalY = enemyY
-end if
-' Positional play: march with the allied wave front when it is in our lane.
+' March with the committed lane's wave front; with no wave, hold at that
+' lane's most forward allied building instead of any fixed map point.
 actMarch = actMarch + 1
-if waveScore < 1000000 then
-  classifyLane(waveX, waveY)
-  if laneId = chosenLane then
-    actWave = actWave + 1
-    goalX = waveX
-    goalY = waveY
+goalX = myX
+goalY = myY
+if laneFront(committedLane) < 1000000 then
+  actWave = actWave + 1
+  goalX = laneFrontX(committedLane)
+  goalY = laneFrontY(committedLane)
+else
+  if laneAnchorRear(committedLane) >= 0 then
+    goalX = frontAnchorX(committedLane)
+    goalY = frontAnchorY(committedLane)
   end if
 end if
 if canShop() and owned(21) > 0 and selfPortalCooldown = 0 then

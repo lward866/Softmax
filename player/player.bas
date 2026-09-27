@@ -3,9 +3,11 @@
 ' Object indices last only for this decision. IDs may be remembered.
 ' Read the bot guide for units, LOS restrictions, and action error constants.
 ' Abilities and items are used only by our explicit policy commands.
-' v10 hits exposed enemy buildings when an allied footman is closer to them
-' than we are (GotA Building Card; current rules: 200 XP and 75 gold to the
-' killer), keeping hero fights first, and logs building and inventory notes.
+' v11 tower safety and shopping: notice every enemy tower that targets us,
+' including protected ones; only stand in an enemy tower's range while it is
+' shooting an allied footman and two or more footmen are under it; save gold
+' for per-hero gear, shop on a safe trip home when gear is affordable, keep
+' one health and one mana potion, and buy back only with gear money left.
 ' v9 drafts by a fixed preference order (see chooseHero).
 ' v8 adds spell gates (GotA Spell Use Card, current-game ranges): E and R only
 ' on enemy heroes, delayed E/R need two heroes or one at 40% HP, W on footmen
@@ -20,6 +22,8 @@
 
 dim owned(22)
 dim laneGrid(899)
+' Gear plan: 0 first item id, 1 its cost, 2 second item id, 3 its cost.
+dim gearPlan(3)
 dim anchorX(11)
 dim anchorY(11)
 dim anchorLane(11)
@@ -313,18 +317,17 @@ sub readObject(index)
       if distance <= 36 then
         allyCreepsNear = allyCreepsNear + 1
       end if
-      if exposedId <> 0 and structureCover = 0 then
-        dx = x - exposedX
-        dy = y - exposedY
-        if dx * dx + dy * dy < exposedGap then
-          structureCover = 1
-        end if
-      end if
       if hostDistance < 1000000 and distance <= 400 then
         dx = x - hostX
         dy = y - hostY
         if dx * dx + dy * dy < coverGap then
           coverGap = dx * dx + dy * dy
+        end if
+        if dx * dx + dy * dy <= 100 then
+          towerCreeps = towerCreeps + 1
+        end if
+        if id = hostTarget then
+          towerTanked = 1
         end if
       end if
       if gridReady then
@@ -345,8 +348,6 @@ sub readObject(index)
         front = dx * dx + dy * dy
         if front < waveScore then
           waveScore = front
-          waveX = x
-          waveY = y
         end if
       end if
     end if
@@ -356,10 +357,17 @@ sub readObject(index)
     enemyX = x
     enemyY = y
   end if
-  if kind = 4 and objectAlive(index) and distance < hostDistance then
-    hostDistance = distance
-    hostX = x
-    hostY = y
+  if kind = 4 then
+    target = objectTarget(index)
+    if target = selfId then
+      towerAggro = 1
+    end if
+    if distance < hostDistance then
+      hostDistance = distance
+      hostX = x
+      hostY = y
+      hostTarget = target
+    end if
   end if
   if kind = 2 and distance <= 36 then
     enemyHeroesNear = enemyHeroesNear + 1
@@ -384,37 +392,11 @@ sub readObject(index)
   end if
   if distance < threatDistance then
     threatDistance = distance
-    threatX = x
-    threatY = y
   end if
   if distance > 324 or objectAlive(index) = 0 then
     exit sub
   end if
   target = objectTarget(index)
-  ' Exposed enemy structure: the god beats barracks, barracks beat towers,
-  ' then the nearest.
-  if kind = 1 or kind = 4 or kind = 5 then
-    rank = 1
-    if kind = 1 then
-      rank = 3
-    elseif kind = 5 then
-      rank = 2
-    end if
-    if rank > exposedRank or (rank = exposedRank and distance < exposedGap) then
-      exposedRank = rank
-      exposedId = id
-      exposedKind = kind
-      exposedIndex = index
-      exposedHp = hp
-      exposedX = x
-      exposedY = y
-      exposedGap = distance
-      exposedOnMe = kind = 4 and target = selfId
-    end if
-  end if
-  if kind = 4 and target = selfId then
-    towerAggro = 1
-  end if
   ' Engage gate: below the hero's HP gate, only take heroes that are finishable.
   if kind = 2 and hpPct < engagePct and hp >= selfAttackDamage * 4 then
     exit sub
@@ -477,16 +459,13 @@ sub observe()
   safeDistance = 1000000
   waveScore = 1000000
   foes = 0
-  exposedId = 0
-  exposedRank = 0
-  exposedGap = 1000000
-  exposedOnMe = 0
-  structureCover = 0
   anchorCount = 0
   anchorsBuilt = 0
   allyCount = 0
-  bucketed = 0
   hostDistance = 1000000
+  hostTarget = 0
+  towerCreeps = 0
+  towerTanked = 0
   coverGap = 1000000
   for laneReset = 0 to 3
     laneHeroes(laneReset) = 0
@@ -553,8 +532,6 @@ sub observe()
   end if
   targetIndex = bestIndex
   ' Divide large integer world units before mixing them with Q16.16 values.
-  velocityX = (side * objectVelX(bestIndex) \ 100) / (worldScale \ 100)
-  velocityY = (side * objectVelY(bestIndex) \ 100) / (worldScale \ 100)
   ' Do not lead a unit whose control lasts through the predicted impact.
   targetHeld = objectStunTicks(bestIndex)
   targetRoot = objectRootTicks(bestIndex)
@@ -648,22 +625,36 @@ sub inventory()
   if canShop() = 0 then
     exit sub
   end if
-  ' Reserve three slots for recovery and travel, two for useful equipment,
-  ' and one for a role-specific burst consumable. Stacks top up on return.
+  ' Boots, then the next gear piece. While gear is unaffordable only the
+  ' essentials are bought (1+ health, 1 mana unless Berserker) so gold
+  ' accumulates; afterwards top up to 2 health potions and 1 portal scroll.
   budget = selfGold
   buy(8, 100, 1)
-  buy(1, 30, 2)
-  buy(21, 100, 2)
-  buy(22, 45, 2)
-  if role = 0 or role = 4 then
-    buy(16, 160, 1)
-    buy(2, 75, 2)
-  elseif role = 1 then
-    buy(19, 180, 1)
-    buy(4, 40, 2)
-  else
-    buy(20, 190, 1)
-    buy(3, 90, 2)
+  nextGear = 0
+  nextGearCost = 0
+  if owned(gearPlan(0)) = 0 then
+    nextGear = gearPlan(0)
+    nextGearCost = gearPlan(1)
+  elseif owned(gearPlan(2)) = 0 then
+    nextGear = gearPlan(2)
+    nextGearCost = gearPlan(3)
+  end if
+  if nextGear <> 0 then
+    buy(nextGear, nextGearCost, 1)
+  end if
+  buy(1, 30, 1)
+  if selfClass <> Berserker then
+    buy(22, 45, 1)
+  end if
+  if owned(nextGear) > 0 or nextGear = 0 then
+    buy(1, 30, 2)
+    buy(21, 100, 1)
+    if owned(gearPlan(2)) = 0 and owned(gearPlan(0)) > 0 then
+      buy(gearPlan(2), gearPlan(3), 1)
+    end if
+  end if
+  if canShop() and shopTrip then
+    shopTrip = 0
   end if
 end sub
 
@@ -795,7 +786,6 @@ sub moveTo(goalX, goalY, marching)
     orderMarch = marching
   elseif actionError = ActionNoRoute then
     ' Try the lane center on the next decision rather than retrying a wall.
-    crossedMiddle = 0
     blockedId = bestId
     blockedUntil = worldTick + tickRate * 3
   end if
@@ -960,29 +950,35 @@ if worldTick >= nextCastLog then
   heldR = 0
 end if
 
-' Building and inventory note, 8 seconds after the main notes (print budget).
-if nextBldLog = 0 then
-  nextBldLog = worldTick + tickRate * 8
+' Tower and shop note, 8 seconds after the main notes (print budget).
+if nextShopLog = 0 then
+  nextShopLog = worldTick + tickRate * 8
 end if
-if worldTick >= nextBldLog then
-  nextBldLog = worldTick + tickRate * 30
-  print "BLD t="; worldTick \ tickRate; " seen="; bldSeen; " cover="; bldCover; " towerOnMe="; bldOnMe; " orders="; bldOrders; " lastKind="; lastExposedKind; " items="; itemId(0); ","; itemId(1); ","; itemId(2); ","; itemId(3); ","; itemId(4); ","; itemId(5); " gold="; selfGold
-  bldSeen = 0
-  bldCover = 0
-  bldOnMe = 0
-  bldOrders = 0
+if worldTick >= nextShopLog then
+  nextShopLog = worldTick + tickRate * 30
+  print "SHOP t="; worldTick \ tickRate; " items="; itemId(0); ","; itemId(1); ","; itemId(2); ","; itemId(3); ","; itemId(4); ","; itemId(5); " gold="; selfGold; " nextGear="; nextGear; " trips="; shopTrips; " buybacks="; buybacks; " towerSkips="; towerSkips; " shopWalk="; actShop
+  towerSkips = 0
+  actShop = 0
 end if
 
-' Buy back immediately whenever affordable, including during a long respawn.
+' Buy back when affordable while keeping the next gear piece's cost (late
+' in the match, whenever affordable), including during a long respawn.
 if selfHp <= 0 then
   if worldTick >= nextDeadTick then
     nextDeadTick = worldTick + 6
     actDead = actDead + 1
   end if
   price = buybackPrice()
-  if price > 0 and selfGold >= price then
+  dx = nextGearCost
+  if worldTick >= 23000 then
+    dx = 0
+  end if
+  if price > 0 and selfGold >= price + dx then
     accepted = buyback()
     actionError = lastActionError()
+    if accepted then
+      buybacks = buybacks + 1
+    end if
   end if
   initialized = 0
   end
@@ -1017,7 +1013,6 @@ if initialized = 0 then
   progressTick = worldTick
   previousX = myX
   previousY = myY
-  crossedMiddle = 0
   retreating = 0
   ' The host exposes effects and costs, but not spell range or cast shape.
   ' These small tables mirror content.nim; all distances are in tiles.
@@ -1046,6 +1041,34 @@ if initialized = 0 then
     retreatPct = 38
   elseif selfClass = DemonHunter then
     retreatPct = 40
+  end if
+  ' Gear plan (current item ids): Druid armor first; melee a weapon then
+  ' armor; ranged carries and mages a weapon then Ironbark Pauldrons.
+  if selfClass = DruidWarden then
+    gearPlan(0) = 15
+    gearPlan(1) = 140
+    gearPlan(2) = 16
+    gearPlan(3) = 160
+  elseif selfClass = VanguardKnight then
+    gearPlan(0) = 16
+    gearPlan(1) = 160
+    gearPlan(2) = 18
+    gearPlan(3) = 180
+  elseif selfClass = DeathKnight or selfClass = Berserker or selfClass = DemonHunter then
+    gearPlan(0) = 18
+    gearPlan(1) = 180
+    gearPlan(2) = 16
+    gearPlan(3) = 160
+  elseif selfClass = Crossbowman or selfClass = Ranger then
+    gearPlan(0) = 19
+    gearPlan(1) = 180
+    gearPlan(2) = 15
+    gearPlan(3) = 140
+  else
+    gearPlan(0) = 20
+    gearPlan(1) = 190
+    gearPlan(2) = 15
+    gearPlan(3) = 140
   end if
   healRange = 4
   for spellSlot = 0 to 3
@@ -1156,27 +1179,14 @@ if gridW * gridH <= 900 and (laneAnchorRear(1) >= 0 or laneAnchorRear(2) >= 0 or
     end if
   end if
 end if
-' Building card: with an allied footman closer to the exposed structure than
-' we are, the structure beats footmen and camps; enemy heroes keep priority.
-if exposedId <> 0 then
-  bldSeen = bldSeen + 1
-  if structureCover then
-    bldCover = bldCover + 1
-  end if
-  if exposedOnMe then
-    bldOnMe = bldOnMe + 1
-  end if
-  lastExposedKind = exposedKind
-  if structureCover and bestKind <> 2 then
-    if exposedId <> blockedId or worldTick >= blockedUntil then
-      bestId = exposedId
-      bestKind = exposedKind
-      bestIndex = exposedIndex
-      bestHp = exposedHp
-      bestX = exposedX
-      bestY = exposedY
-      bestDistance = exposedGap
-      bldOrders = bldOrders + 1
+' Do not pick fights inside an uncovered enemy tower's reach.
+if hostDistance < 1000000 and bestId <> 0 then
+  if towerTanked = 0 or towerCreeps < 2 then
+    dx = bestX - hostX
+    dy = bestY - hostY
+    if dx * dx + dy * dy <= 110 then
+      bestId = 0
+      towerSkips = towerSkips + 1
     end if
   end if
 end if
@@ -1293,7 +1303,9 @@ if retreating then
   end
 end if
 
-if towerAggro and allyCreepsNear = 0 then
+' Tower safety: inside an enemy tower's reach (about 10 tiles) stay only
+' while it shoots an allied footman and at least two footmen are under it.
+if (towerAggro or hostDistance <= 110) and (towerTanked = 0 or towerCreeps < 2) then
   actTower = actTower + 1
   if safeDistance < 1000000 then
     moveTo(safeX, safeY, 0)
@@ -1301,6 +1313,23 @@ if towerAggro and allyCreepsNear = 0 then
     moveTo(homeX, homeY, 0)
   end if
   end
+end if
+' Shopping trip: walk home only when the next gear piece plus potions is
+' affordable, no enemy hero is near, and there is time left to use it.
+if shopTrip = 0 and nextGear <> 0 and selfGold >= nextGearCost + 75 then
+  if worldTick < 23000 and enemyHeroesNear = 0 and bestKind <> 2 and inOwnSpawn() = 0 then
+    shopTrip = 1
+    shopTrips = shopTrips + 1
+  end if
+end if
+if shopTrip then
+  if enemyHeroesNear > 0 or selfGold < nextGearCost or nextGear = 0 then
+    shopTrip = 0
+  else
+    actShop = actShop + 1
+    moveTo(spawnX, spawnY, 0)
+    end
+  end if
 end if
 if enemyPower > friendlyPower + 6 and threatDistance < 64 then
   if selfHp * 4 < selfMaxHp * 3 then
@@ -1415,6 +1444,14 @@ else
   if laneAnchorRear(committedLane) >= 0 then
     goalX = frontAnchorX(committedLane)
     goalY = frontAnchorY(committedLane)
+  end if
+end if
+if hostDistance < 1000000 and (towerTanked = 0 or towerCreeps < 2) then
+  dx = goalX - hostX
+  dy = goalY - hostY
+  if dx * dx + dy * dy <= 110 then
+    goalX = myX
+    goalY = myY
   end if
 end if
 if canShop() and owned(21) > 0 and selfPortalCooldown = 0 then

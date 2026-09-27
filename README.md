@@ -40,5 +40,11 @@ uv run coworld xp-request --help
   v1 averaged ~1,800 lifetime XP vs ~4,600 for the other 9 bots; it had the lowest XP on its team in 7/10.
   The league's own `Polyworld GOTA base.bas:v2` also averaged 0. Top random opponent: `khors:v208` (~5,300 avg score).
   Player logs contain only start/complete lines (the Baseline prints nothing); events.json was still pending.
+- Upload v2 (`:v2`, tag version=baseline-v2-diagnostics): Baseline + STATUS prints, same behavior.
+  XP Request `xreq_53bd9e1c-382e-470b-9fc6-2f5f9b65b285` (`xp/xp-request-v2-diagnostics.json`), same settings as v1.
+  Result: score 0 in all 10; XP 1,407–3,778 (avg ~2,430) vs ~4,540 for others. Drafted Vanguard Knight in 7/10.
+  Deaths 2–16. Main finding: `retreat=1` in ~35–45% of 30-second samples in 9/10 matches — the hero walks all the
+  way back to spawn (~60–100 tiles) at 25% HP and waits for 90% HP, then walks back. E.g. seat 3: 2 deaths but only
+  65 basic hits and level 6 after 20 minutes.
 - `runs/local-smoke-001` (local, not committed): 5× Baseline (Red) vs 5× Rusher (Blue), seed 2026.
   Red won at tick 23548 (~16.4 min). Red scores 197/0/0/4953/220; Blue all 0.

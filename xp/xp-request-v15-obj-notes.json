@@ -1,0 +1,70 @@
+{
+  "idempotency_key": "v15-obj-notes-random-30ep-001",
+  "target": {
+    "league_id": "league_3c60897b-25cf-4b37-9d1a-8554c1198f28"
+  },
+  "roster": [
+    {
+      "player": {
+        "policy_ref": "lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v15"
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    }
+  ],
+  "num_episodes": 30,
+  "notes": "Diagnostics: v15 (v14 behavior + OBJ note: tower in reach, covered, wave cleared, hitting, missed, ally at tower) vs 9 random league champions, rotate seats, 30 episodes"
+}

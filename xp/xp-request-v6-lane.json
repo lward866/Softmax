@@ -1,0 +1,70 @@
+{
+  "idempotency_key": "v6-lane-random-10ep-001",
+  "target": {
+    "league_id": "league_3c60897b-25cf-4b37-9d1a-8554c1198f28"
+  },
+  "roster": [
+    {
+      "player": {
+        "policy_ref": "lward866-ply_fde93154-97b0-41bb-85d8-7152ad860c8c:v6"
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    },
+    {
+      "player": {
+        "random": true
+      },
+      "slot": -1
+    }
+  ],
+  "num_episodes": 10,
+  "notes": "A/B candidate: v6 (v5 + least-crowded lane choice with 45s re-check and 2-ally switch margin) vs 9 random league champions, rotate seats, 10 episodes"
+}
